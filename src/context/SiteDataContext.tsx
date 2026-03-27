@@ -127,7 +127,11 @@ const defaultSettings: SiteSettings = {
     youtube: '',
     tiktok: '',
   },
-  mysqlApiUrl: 'http://localhost:3002',
+  mysqlApiUrl: typeof window !== 'undefined' 
+    ? (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
+      ? 'http://localhost:3002'
+      : `${window.location.protocol}//${window.location.hostname}${window.location.port ? `:${window.location.port}` : ''}`)
+    : 'http://localhost:3002',
 };
 
 function loadFromStorage<T>(key: string, fallback: T): T {
@@ -234,7 +238,12 @@ export function SiteDataProvider({ children }: { children: ReactNode }) {
     const stored = loadFromStorage('pc_settings', null as SiteSettings | null);
     const merged = { ...defaultSettings, ...stored, socialMedia: { ...defaultSettings.socialMedia, ...(stored?.socialMedia || {}) } };
     if (!stored || !stored.mysqlApiUrl?.trim()) {
-      merged.mysqlApiUrl = 'http://localhost:3002';
+      const apiUrl = typeof window !== 'undefined'
+        ? (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+          ? 'http://localhost:3002'
+          : `${window.location.protocol}//${window.location.hostname}${window.location.port ? `:${window.location.port}` : ''}`)
+        : 'http://localhost:3002';
+      merged.mysqlApiUrl = apiUrl;
       setSettings(merged);
       localStorage.setItem('pc_settings', JSON.stringify(merged));
     } else {
