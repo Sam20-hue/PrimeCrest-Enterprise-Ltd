@@ -1,0 +1,34 @@
+{
+  "sqltools.connections": [
+    {
+      "mysqlOptions": {
+        "authProtocol": "default"
+      },
+      "previewLimit": 50,
+      "server": "localhost",
+      "port": 3306,
+      "driver": "MySQL",
+      "name": "Primecrest Database",
+      "database": "primecrest_enterprise",
+      "username": "root",
+      "password": "Sam20???"
+    }
+  ],
+  "sqltools.useNodeRuntime": true,
+  "npm.packageManager": "npm",
+  "[sql]": {
+    "editor.defaultFormatter": "ms-mssql.mssql"
+  },
+  "mssql.connections": [
+    {
+      "server": "localhost",
+      "database": "primecrest_enterprise",
+      "authenticationType": "SqlLogin",
+      "user": "root",
+      "password": "Sam20???",
+      "emptyPasswordInput": false,
+      "savePassword": true,
+      "profileName": "Primecrest MySQL"
+    }
+  ]
+}
