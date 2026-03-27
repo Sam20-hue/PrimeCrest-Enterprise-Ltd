@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
+    "start": "npx serve -s out -l 3000",
     "lint": "eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "type-check": "tsc --noEmit --project tsconfig.app.json",
     "postinstall": "find node_modules -type f -name esbuild -o -name vite | xargs chmod +x 2>/dev/null || true"
