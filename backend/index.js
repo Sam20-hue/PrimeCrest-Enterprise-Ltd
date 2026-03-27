@@ -29,10 +29,10 @@ const storage = multer.diskStorage({
 const upload = multer({ storage });
 
 const pool = mysql.createPool({
-  host: 'localhost',
-  user: 'root',
-  password: 'Sam20???',
-  database: 'primecrest_enterprise',
+  host: process.env.DB_HOST || 'localhost',
+  user: process.env.DB_USER || 'root',
+  password: process.env.DB_PASS || '',
+  database: process.env.DB_NAME || 'primecrest_enterprise',
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0,
