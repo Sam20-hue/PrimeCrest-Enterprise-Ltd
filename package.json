@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "lint": "eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "type-check": "tsc --noEmit --project tsconfig.app.json",
-    "postinstall": "chmod +x node_modules/.bin/* 2>/dev/null || true"
+    "postinstall": "find node_modules -type f -name esbuild -o -name vite | xargs chmod +x 2>/dev/null || true"
   },
   "dependencies": {
     "@stripe/react-stripe-js": "4.0.2",
