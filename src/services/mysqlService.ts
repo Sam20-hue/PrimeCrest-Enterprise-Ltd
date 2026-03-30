@@ -45,14 +45,13 @@ const getDefaultApiUrl = (): string => {
   const protocol = window.location.protocol || 'http:';
   const hostname = window.location.hostname || 'localhost';
 
-  // Prefer the backend default; if the frontend is on 3000, use 3002 by default.
+  // Prefer the backend default locally; if the frontend is on 3000, use 3002.
   if (hostname === 'localhost' || hostname === '127.0.0.1') {
     return `${protocol}//${hostname}:3002`;
   }
 
-  // For deployed host, attempt same host from frontend with :3002 fallback.
-  const currentPort = window.location.port || '3002';
-  return `${protocol}//${hostname}:${currentPort}`;
+  // On production, use the same origin so /api/* hits the PHP backend.
+  return `${protocol}//${hostname}`;
 };
 
 const normalizeApiUrl = (url: string | undefined): string => {
@@ -72,6 +71,15 @@ const getApiUrl = (): string => {
     if (stored) {
       const settings = JSON.parse(stored);
       const normalized = normalizeApiUrl(settings.mysqlApiUrl);
+      const currentHostname = window.location.hostname || 'localhost';
+      const isCurrentLocal = currentHostname === 'localhost' || currentHostname === '127.0.0.1';
+      const isLocalUrl = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(normalized || '');
+
+      if (!isCurrentLocal && isLocalUrl) {
+        // Ignore stale local development API URL when not running locally.
+        return preferred;
+      }
+
       return normalized || preferred;
     }
   } catch {
@@ -187,6 +195,7 @@ export const mysqlService = {
 
   // -- Contacts ---------------------------------------------------------------
   getContacts: () => request('GET', '/api/contacts'),
+  deleteContact: (id: string | number) => request('DELETE', `/api/contacts?id=${encodeURIComponent(String(id))}`),
 
   // -- Sync all shortcut -----------------------------------------------------
   syncAll: (payload: unknown) => request('POST', '/api/sync', payload),

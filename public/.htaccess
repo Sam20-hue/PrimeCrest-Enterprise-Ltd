@@ -1,0 +1,21 @@
+RewriteEngine On
+
+# Allow direct access to PHP API files
+RewriteCond %{REQUEST_URI} ^/api/.*\.php$
+RewriteRule ^ - [L]
+
+# Rewrite friendly API endpoints to PHP handlers
+RewriteRule ^api/contact$ /api/contact.php [L,QSA]
+RewriteRule ^api/contacts$ /api/contacts.php [L,QSA]
+RewriteRule ^api/upload$ /api/upload.php [L,QSA]
+
+# Route all other API requests through the API router
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^api/.*$ /api/router.php [L,QSA]
+
+# SPA fallback for frontend routes like /admin
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteCond %{REQUEST_URI} !^/api/
+RewriteRule ^ index.html [L,QSA]

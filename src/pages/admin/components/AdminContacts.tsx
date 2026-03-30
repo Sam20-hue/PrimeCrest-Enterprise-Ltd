@@ -6,6 +6,7 @@ export default function AdminContacts() {
   const { contacts, setContacts } = useSiteData();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [deleting, setDeleting] = useState<string | number | null>(null);
 
   useEffect(() => {
     // Only load contacts if we don't have any yet (they should be preloaded by admin page)
@@ -34,6 +35,22 @@ export default function AdminContacts() {
     );
   }
 
+  const handleDelete = async (id: string | number) => {
+    const confirmed = window.confirm('Delete this contact message? This cannot be undone.');
+    if (!confirmed) return;
+
+    setDeleting(id);
+    const result = await mysqlService.deleteContact(id);
+    setDeleting(null);
+
+    if (!result.ok) {
+      setError(result.error || 'Failed to delete contact.');
+      return;
+    }
+
+    setContacts(contacts.filter((contact) => String(contact.id) !== String(id)));
+  };
+
   if (error) {
     return (
       <div className="bg-red-50 border border-red-200 rounded-lg p-4">
@@ -60,16 +77,23 @@ export default function AdminContacts() {
         <div className="space-y-4">
           {contacts.map((contact) => (
             <div key={contact.id} className="bg-white rounded-xl p-6 border border-gray-100">
-              <div className="flex items-start justify-between mb-4">
+              <div className="flex items-start justify-between mb-4 gap-4 flex-wrap">
                 <div>
                   <h3 className="font-bold text-gray-900">{contact.name}</h3>
                   <p className="text-sm text-gray-600">{contact.email}</p>
                   {contact.phone && <p className="text-sm text-gray-600">{contact.phone}</p>}
                 </div>
-                <div className="text-right">
+                <div className="flex items-center gap-3">
                   <p className="text-xs text-gray-400">
                     {new Date(contact.created_at).toLocaleString()}
                   </p>
+                  <button
+                    onClick={() => handleDelete(contact.id)}
+                    disabled={deleting === contact.id}
+                    className="px-3 py-2 text-xs font-semibold rounded-lg border border-red-200 text-red-700 bg-red-50 hover:bg-red-100 transition-colors disabled:opacity-60"
+                  >
+                    {deleting === contact.id ? 'Deleting...' : 'Delete'}
+                  </button>
                 </div>
               </div>
 

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useSiteData } from '../../context/SiteDataContext';
 import { translations } from '../../i18n/translations';
-import { mysqlService } from '../../services/mysqlService';
+import { getContactApiEndpoint } from '../../utils/contactApi';
 
 export default function ContactPage() {
   const { settings, services, language } = useSiteData();
@@ -16,29 +16,28 @@ export default function ContactPage() {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
 
+  const sendViaEmailClient = () => {
+    const recipient = settings.email || 'info@primecrestenterprise.com';
+    const subject = `Website inquiry from ${form.name || 'a visitor'}`;
+    const body = `Name: ${form.name}\nEmail: ${form.email}\nPhone: ${form.phone}\nService: ${form.service || 'General Inquiry'}\n\nMessage:\n${form.message}`;
+    window.location.href = `mailto:${recipient}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  };
+
+  const handleFallbackEmail = () => {
+    setError('The contact form backend is unavailable. Your email client will open so you can send the message manually.');
+    setLoading(false);
+    sendViaEmailClient();
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
 
-    let apiUrl = '';
-    const resolveApiUrl = () => {
-      if (typeof window === 'undefined') return 'http://localhost:3002';
-      const host = window.location.hostname || 'localhost';
-      const protocol = window.location.protocol || 'http:';
-      const baseDefault = host === 'localhost' || host === '127.0.0.1'
-        ? `${protocol}//${host}:3002`
-        : `${protocol}//${host}:${window.location.port || '3002'}`;
-
-      const configured = settings.mysqlApiUrl?.trim().replace(/\/$/, '');
-      if (!configured) return baseDefault;
-      if (/^https?:\/\//i.test(configured)) return configured;
-      return `${protocol}//${configured}`;
-    };
+    const apiUrl = getContactApiEndpoint(settings.mysqlApiUrl);
 
     try {
-      apiUrl = resolveApiUrl();
-      const response = await fetch(`${apiUrl}/api/contact`, {
+      const response = await fetch(apiUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -51,6 +50,11 @@ export default function ContactPage() {
       });
 
       if (!response.ok) {
+        if ([404, 502, 503].includes(response.status)) {
+          handleFallbackEmail();
+          return;
+        }
+
         const text = await response.text();
         let errorMsg = 'Failed to send message. Please try again.';
         try {
@@ -64,48 +68,12 @@ export default function ContactPage() {
         return;
       }
 
-      const data = await response.json();
+      await response.json();
       setLoading(false);
       setSubmitted(true);
       setForm({ name: '', email: '', phone: '', service: '', message: '' });
     } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : 'Network error. Please check your connection.';
-
-      // Attempt a fallback to default local backend URL if the first attempt fails.
-      if (typeof window !== 'undefined') {
-        const defaultUrl = `${window.location.protocol}//${window.location.hostname}:3002`;
-        if (apiUrl && !apiUrl.includes(':3002')) {
-          try {
-            const fallbackResponse = await fetch(`${defaultUrl}/api/contact`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                name: form.name,
-                email: form.email,
-                phone: form.phone,
-                service: form.service,
-                message: form.message,
-              }),
-            });
-
-            if (fallbackResponse.ok) {
-              setLoading(false);
-              setSubmitted(true);
-              setForm({ name: '', email: '', phone: '', service: '', message: '' });
-              return;
-            }
-            const text = await fallbackResponse.text();
-            setError(text || errorMsg);
-            setLoading(false);
-            return;
-          } catch {
-            // fallback also failed, use primary error message.
-          }
-        }
-      }
-
-      setError(`Request to ${apiUrl || 'unknown'} failed: ${errorMsg}`);
-      setLoading(false);
+      handleFallbackEmail();
     }
   };
 

@@ -10,6 +10,7 @@ export default function AdminSettings() {
   const [mysqlMsg, setMysqlMsg] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [logoPreview, setLogoPreview] = useState<string>(form.logoUrl);
+  const isDirty = JSON.stringify(form) !== JSON.stringify(settings);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -42,7 +43,13 @@ export default function AdminSettings() {
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
-    updateSettings({ ...form, logoUrl: logoPreview });
+    const fixedForm = {
+      ...form,
+      email: 'primecrestenterprise@gmail.com',
+      phone: '0721579821',
+      logoUrl: logoPreview,
+    };
+    updateSettings(fixedForm);
     setSaved(true);
     setTimeout(() => setSaved(false), 2500);
   };
@@ -69,6 +76,11 @@ export default function AdminSettings() {
     { key: 'youtube', label: 'YouTube', icon: 'ri-youtube-line', placeholder: 'https://youtube.com/@yourchannel' },
     { key: 'tiktok', label: 'TikTok', icon: 'ri-tiktok-line', placeholder: 'https://tiktok.com/@yourhandle' },
   ];
+
+  const currentHost = typeof window !== 'undefined' ? window.location.hostname : '';
+  const isCurrentLocal = currentHost === 'localhost' || currentHost === '127.0.0.1';
+  const isLocalApiUrl = !!form.mysqlApiUrl && /(localhost|127\.0\.0\.1)/i.test(form.mysqlApiUrl);
+  const showLocalApiWarning = !isCurrentLocal && isLocalApiUrl;
 
   return (
     <div>
@@ -176,11 +188,11 @@ export default function AdminSettings() {
         <div className="bg-white rounded-xl p-6 border border-gray-100 space-y-5">
           <h3 className="font-bold text-gray-900">Company Information</h3>
           {([
-            { name: 'companyName', label: 'Company Name', type: 'text', placeholder: 'PRIMECREST ENTERPRISE LTD' },
-            { name: 'tagline', label: 'Tagline', type: 'text', placeholder: 'Your Trusted Security Partner' },
-            { name: 'phone', label: 'Phone Number', type: 'tel', placeholder: '+254 700 000 000' },
-            { name: 'email', label: 'Email Address', type: 'email', placeholder: 'info@company.co.ke' },
-            { name: 'address', label: 'Physical Address', type: 'text', placeholder: 'Nairobi, Kenya' },
+            { name: 'companyName', label: 'Company Name', type: 'text', placeholder: 'PRIMECREST ENTERPRISE LTD', disabled: false },
+            { name: 'tagline', label: 'Tagline', type: 'text', placeholder: 'Your Trusted Security Partner', disabled: false },
+            { name: 'phone', label: 'Phone Number', type: 'tel', placeholder: '0721579821', disabled: true },
+            { name: 'email', label: 'Email Address', type: 'email', placeholder: 'primecrestenterprise@gmail.com', disabled: true },
+            { name: 'address', label: 'Physical Address', type: 'text', placeholder: 'Nairobi, Kenya', disabled: false },
           ] as const).map((field) => (
             <div key={field.name}>
               <label className="block text-sm font-semibold text-gray-700 mb-2">{field.label}</label>
@@ -189,11 +201,15 @@ export default function AdminSettings() {
                 name={field.name}
                 value={(form as Record<string, string>)[field.name]}
                 onChange={handleChange}
-                className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-orange-400"
+                disabled={field.disabled}
+                className={`w-full px-4 py-3 border rounded-lg text-sm focus:outline-none focus:border-orange-400 ${field.disabled ? 'bg-gray-100 border-gray-200 cursor-not-allowed text-gray-500' : 'border-gray-200'}`}
                 placeholder={field.placeholder}
               />
             </div>
           ))}
+          <div className="text-xs text-gray-500">
+            <p>Company email and phone are fixed to primecrestenterprise@gmail.com and 0721579821.</p>
+          </div>
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-2">About Text</label>
             <textarea
@@ -277,6 +293,12 @@ export default function AdminSettings() {
               placeholder="https://your-api-server.com"
             />
             <p className="text-xs text-gray-400 mt-1.5">Example: https://api.primecrest.co.ke or http://localhost:3001</p>
+            <p className="text-xs text-gray-400 mt-1.5">Leave this blank if your site is deployed to a PHP host and uses same-origin API endpoints like <code className="bg-gray-100 px-1 rounded">/api/*</code>.</p>
+            {showLocalApiWarning && (
+              <p className="text-xs text-red-500 mt-2">
+                Warning: your site is currently not on localhost. A local API URL like <strong>localhost</strong> or <strong>127.0.0.1</strong> will likely fail in production.
+              </p>
+            )}
           </div>
           <div className="flex items-center gap-3">
             <button
@@ -335,10 +357,15 @@ export default function AdminSettings() {
 
         <button
           type="submit"
-          className="px-8 py-3.5 bg-orange-600 text-white font-bold rounded-lg hover:bg-orange-700 transition-colors cursor-pointer flex items-center gap-2 whitespace-nowrap"
+          disabled={!isDirty || mysqlStatus === 'testing'}
+          className={`px-8 py-3.5 rounded-lg text-white font-bold transition-colors flex items-center gap-2 whitespace-nowrap ${
+            !isDirty || mysqlStatus === 'testing'
+              ? 'bg-gray-400 cursor-not-allowed'
+              : 'bg-orange-600 hover:bg-orange-700 cursor-pointer'
+          }`}
         >
           <i className="ri-save-line" />
-          {saved ? 'Settings Saved!' : 'Save All Settings'}
+          {saved ? 'Settings Saved!' : isDirty ? 'Save All Settings' : 'No changes to save'}
         </button>
       </form>
     </div>

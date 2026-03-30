@@ -88,6 +88,7 @@ const smtpSecure = (process.env.SMTP_SECURE || 'false').toLowerCase() === 'true'
 const smtpUser = process.env.SMTP_USER;
 const smtpPass = process.env.SMTP_PASS;
 const senderEmail = process.env.SENDER_EMAIL || smtpUser;
+const adminEmail = process.env.ADMIN_EMAIL || senderEmail;
 
 let transporter = null;
 if (smtpHost && smtpPort && smtpUser && smtpPass) {
@@ -96,8 +97,9 @@ if (smtpHost && smtpPort && smtpUser && smtpPass) {
     port: smtpPort,
     secure: smtpSecure,
     auth: { user: smtpUser, pass: smtpPass },
+    tls: { rejectUnauthorized: false },
   });
-  console.log('Email service initialized:', { host: smtpHost, port: smtpPort, user: smtpUser });
+  console.log('Email service initialized:', { host: smtpHost, port: smtpPort, user: smtpUser, adminEmail });
 } else {
   console.warn('SMTP not fully configured. Contact form emails will not be sent.');
 }
@@ -427,7 +429,6 @@ app.post('/api/contact', async (req, res) => {
   }
 
   try {
-    const adminEmail = 'samsonakula3@gmail.com';
     const htmlContent = generateContactEmailHTML(name, email, phone, service, message);
 
     // Send email to admin
@@ -517,8 +518,10 @@ app.post('/api/contact', async (req, res) => {
 
     res.json({ success: true, message: 'Your message has been sent successfully. We will contact you soon!' });
   } catch (err) {
-    console.error('Contact form email error:', err.message);
-    res.status(500).json({ error: 'Failed to send email. Please try again later.' });
+    console.error('Contact form email error:', err);
+    const errorMessage = 'Failed to send email. Please try again later.';
+    const detailed = process.env.NODE_ENV !== 'production' ? ` ${err.message || err}` : '';
+    res.status(500).json({ error: `${errorMessage}${detailed}` });
   }
 });
 
@@ -646,6 +649,15 @@ autoCrud('testimonials', 'testimonials');
 app.get('/api/contacts', async (req, res) => {
   const [rows] = await pool.query('SELECT * FROM contacts ORDER BY created_at DESC');
   res.json(rows);
+});
+
+app.delete('/api/contacts', async (req, res) => {
+  const id = req.query.id;
+  if (!id) {
+    return res.status(400).json({ error: 'Contact id is required.' });
+  }
+  await pool.query('DELETE FROM contacts WHERE id = ?', [id]);
+  res.json({ success: true, id });
 });
 
 app.get('/api/settings', async (req, res) => {

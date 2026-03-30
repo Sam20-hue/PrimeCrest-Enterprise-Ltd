@@ -78,7 +78,7 @@ export interface TeamMember {
 }
 
 export interface Contact {
-  id: number;
+  id: string | number;
   name: string;
   email: string;
   phone?: string;
@@ -111,7 +111,8 @@ const defaultSettings: SiteSettings = {
   companyName: 'PRIMECREST ENTERPRISE LTD',
   tagline: 'Your Trusted Security & Technology Partner',
   phone: '+254 700 000 000',
-  email: 'info@primecrest.co.ke',
+  email: 'primecrestenterprise@gmail.com',
+  phone: '0721579821',
   address: 'Nairobi, Kenya',
   aboutText: 'PRIMECREST ENTERPRISE LTD is a leading security and technology company providing comprehensive solutions across Kenya. With years of experience, we deliver professional CCTV installations, vault engineering, biometric systems, alarm installations, and IT infrastructure for banks, Saccos, businesses, and homes.',
   adminPassword: 'admin123',
@@ -127,11 +128,12 @@ const defaultSettings: SiteSettings = {
     youtube: '',
     tiktok: '',
   },
-  mysqlApiUrl: typeof window !== 'undefined' 
-    ? (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
-      ? 'http://localhost:3002'
-      : `${window.location.protocol}//${window.location.hostname}${window.location.port ? `:${window.location.port}` : ''}`)
-    : 'http://localhost:3002',
+  mysqlApiUrl: '',
+};
+
+const FIXED_COMPANY_INFO = {
+  email: 'primecrestenterprise@gmail.com',
+  phone: '0721579821',
 };
 
 function loadFromStorage<T>(key: string, fallback: T): T {
@@ -143,12 +145,22 @@ function loadFromStorage<T>(key: string, fallback: T): T {
   }
 }
 
+function isLocalhostApiUrl(url?: string): boolean {
+  if (!url) return false;
+  return /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(url.trim());
+}
+
 const SiteDataContext = createContext<SiteDataContextType | null>(null);
 
 export function SiteDataProvider({ children }: { children: ReactNode }) {
   const [settings, setSettings] = useState<SiteSettings>(() => {
     const stored = loadFromStorage<SiteSettings>('pc_settings', defaultSettings);
-    return { ...defaultSettings, ...stored, socialMedia: { ...defaultSettings.socialMedia, ...(stored.socialMedia || {}) } };
+    return {
+      ...defaultSettings,
+      ...stored,
+      ...FIXED_COMPANY_INFO,
+      socialMedia: { ...defaultSettings.socialMedia, ...(stored.socialMedia || {}) },
+    };
   });
   const [services, setServicesState] = useState<Service[]>(() =>
     loadFromStorage('pc_services', mockServices)
@@ -173,7 +185,6 @@ export function SiteDataProvider({ children }: { children: ReactNode }) {
   });
 
   const syncToApi = async (newSettings: SiteSettings, newServices: Service[], newGallery: GalleryItem[], newBlog: BlogPost[], newTestimonials: Testimonial[], newTeam: TeamMember[]) => {
-    if (!newSettings?.mysqlApiUrl?.trim()) return;
     try {
       await mysqlService.syncAll({
         settings: newSettings,
@@ -190,9 +201,10 @@ export function SiteDataProvider({ children }: { children: ReactNode }) {
   };
 
   const updateSettings = (s: SiteSettings) => {
-    setSettings(s);
-    localStorage.setItem('pc_settings', JSON.stringify(s));
-    syncToApi(s, services, gallery, blogPosts, testimonials, team);
+    const fixed = { ...s, ...FIXED_COMPANY_INFO };
+    setSettings(fixed);
+    localStorage.setItem('pc_settings', JSON.stringify(fixed));
+    syncToApi(fixed, services, gallery, blogPosts, testimonials, team);
   };
 
   const setServices = (s: Service[]) => {
@@ -236,20 +248,80 @@ export function SiteDataProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const stored = loadFromStorage('pc_settings', null as SiteSettings | null);
-    const merged = { ...defaultSettings, ...stored, socialMedia: { ...defaultSettings.socialMedia, ...(stored?.socialMedia || {}) } };
-    if (!stored || !stored.mysqlApiUrl?.trim()) {
-      const apiUrl = typeof window !== 'undefined'
-        ? (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-          ? 'http://localhost:3002'
-          : `${window.location.protocol}//${window.location.hostname}${window.location.port ? `:${window.location.port}` : ''}`)
-        : 'http://localhost:3002';
-      merged.mysqlApiUrl = apiUrl;
-      setSettings(merged);
-      localStorage.setItem('pc_settings', JSON.stringify(merged));
-    } else {
-      // Ensure settings in localStorage also has all defaults
-      localStorage.setItem('pc_settings', JSON.stringify(merged));
+    const merged = {
+      ...defaultSettings,
+      ...stored,
+      ...FIXED_COMPANY_INFO,
+      socialMedia: { ...defaultSettings.socialMedia, ...(stored?.socialMedia || {}) },
+    };
+    const currentHost = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
+    if (
+      !stored ||
+      !stored.mysqlApiUrl?.trim() ||
+      (currentHost !== 'localhost' && currentHost !== '127.0.0.1' && isLocalhostApiUrl(stored.mysqlApiUrl))
+    ) {
+      merged.mysqlApiUrl = '';
     }
+    setSettings(merged);
+    localStorage.setItem('pc_settings', JSON.stringify(merged));
+  }, []);
+
+  useEffect(() => {
+    const loadRemoteData = async () => {
+      try {
+        const [settingsRes, servicesRes, galleryRes, blogRes, testimonialsRes, teamRes] = await Promise.all([
+          mysqlService.getSettings(),
+          mysqlService.getServices(),
+          mysqlService.getGallery(),
+          mysqlService.getBlogPosts(),
+          mysqlService.getTestimonials(),
+          mysqlService.getTeam(),
+        ]);
+
+        if (settingsRes.ok && settingsRes.data) {
+          const remoteSettings = {
+            ...defaultSettings,
+            ...(settingsRes.data as Partial<SiteSettings>),
+            ...FIXED_COMPANY_INFO,
+            socialMedia: {
+              ...defaultSettings.socialMedia,
+              ...((settingsRes.data as Partial<SiteSettings>).socialMedia || {}),
+            },
+          };
+          setSettings(remoteSettings);
+          localStorage.setItem('pc_settings', JSON.stringify(remoteSettings));
+        }
+
+        if (servicesRes.ok && Array.isArray(servicesRes.data)) {
+          setServicesState(servicesRes.data);
+          localStorage.setItem('pc_services', JSON.stringify(servicesRes.data));
+        }
+
+        if (galleryRes.ok && Array.isArray(galleryRes.data)) {
+          setGalleryState(galleryRes.data);
+          localStorage.setItem('pc_gallery', JSON.stringify(galleryRes.data));
+        }
+
+        if (blogRes.ok && Array.isArray(blogRes.data)) {
+          setBlogPostsState(blogRes.data);
+          localStorage.setItem('pc_blog', JSON.stringify(blogRes.data));
+        }
+
+        if (testimonialsRes.ok && Array.isArray(testimonialsRes.data)) {
+          setTestimonialsState(testimonialsRes.data);
+          localStorage.setItem('pc_testimonials', JSON.stringify(testimonialsRes.data));
+        }
+
+        if (teamRes.ok && Array.isArray(teamRes.data)) {
+          setTeamState(teamRes.data);
+          localStorage.setItem('pc_team', JSON.stringify(teamRes.data));
+        }
+      } catch {
+        // ignore backend load failures and continue with local state
+      }
+    };
+
+    loadRemoteData();
   }, []);
 
   return (

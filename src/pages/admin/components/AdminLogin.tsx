@@ -8,6 +8,7 @@ interface AdminLoginProps {
 
 export default function AdminLogin({ onLogin }: AdminLoginProps) {
   const { settings } = useSiteData();
+  const [email, setEmail] = useState(settings.adminEmail || '');
   const [password, setPassword] = useState('');
   const [token, setToken] = useState('');
   const [step, setStep] = useState<'password' | 'setup' | 'verify'>('password');
@@ -52,12 +53,22 @@ export default function AdminLogin({ onLogin }: AdminLoginProps) {
       return;
     }
 
+    if (!email.trim()) {
+      setError('Please enter your admin email.');
+      return;
+    }
+
+    if (email.trim() !== (settings.adminEmail || 'samsonakula3@gmail.com')) {
+      setError('Email does not match the admin account.');
+      return;
+    }
+
     if (password !== (settings.adminPassword || 'admin123')) {
       setError('Incorrect password. Please try again.');
       return;
     }
 
-    // Password correct, move to 2FA
+    // Email and password correct, move to 2FA
     const localFlag = localStorage.getItem('pc_2fa_setup') === 'true';
     if (is2faSetup || localFlag) {
       // User has already set up 2FA, ask for token
@@ -71,8 +82,8 @@ export default function AdminLogin({ onLogin }: AdminLoginProps) {
 
   const setupNewTotp = async () => {
     setStatus('Generating QR code...');
-    const email = settings.adminEmail || 'samsonakula3@gmail.com';
-    const response = await mysqlService.setup2fa(email);
+    const authEmail = email.trim() || settings.adminEmail || 'samsonakula3@gmail.com';
+    const response = await mysqlService.setup2fa(authEmail);
 
     if (response.ok && response.data) {
       setQrCode(response.data.qrCode);
@@ -91,8 +102,8 @@ export default function AdminLogin({ onLogin }: AdminLoginProps) {
     }
 
     setStatus('Verifying token...');
-    const email = settings.adminEmail || 'samsonakula3@gmail.com';
-    const response = await mysqlService.verify2fa(email, token);
+    const authEmail = email.trim() || settings.adminEmail || 'samsonakula3@gmail.com';
+    const response = await mysqlService.verify2fa(authEmail, token);
 
     if (response.ok) {
       localStorage.setItem('pc_2fa_setup', 'true');
@@ -115,8 +126,8 @@ export default function AdminLogin({ onLogin }: AdminLoginProps) {
     }
 
     setStatus('Verifying token...');
-    const email = settings.adminEmail || 'samsonakula3@gmail.com';
-    const response = await mysqlService.verify2fa(email, token);
+    const authEmail = email.trim() || settings.adminEmail || 'samsonakula3@gmail.com';
+    const response = await mysqlService.verify2fa(authEmail, token);
 
     if (response.ok) {
       localStorage.setItem('pc_2fa_setup', 'true');
@@ -156,6 +167,17 @@ export default function AdminLogin({ onLogin }: AdminLoginProps) {
             {is2faChecking && (
               <p className="text-gray-400 text-xs text-center">Checking existing 2FA setup...</p>
             )}
+
+            <div>
+              <label className="block text-sm font-semibold text-gray-400 mb-2">Admin Email</label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-600 focus:outline-none focus:border-orange-500 text-sm"
+                placeholder="Enter admin email"
+              />
+            </div>
 
             <div>
               <label className="block text-sm font-semibold text-gray-400 mb-2">Admin Password</label>
@@ -242,7 +264,7 @@ export default function AdminLogin({ onLogin }: AdminLoginProps) {
         {status && <p className="text-green-400 text-xs font-medium mt-3 text-center">{status}</p>}
         {error && <p className="text-red-400 text-xs font-medium mt-3 text-center">{error}</p>}
         <p className="text-gray-600 text-xs text-center mt-6">
-          Email: samsonakula3@gmail.com (change in Settings)
+          Admin email: {settings.adminEmail || 'samsonakula3@gmail.com'} (change in Settings)
         </p>
       </div>
     </div>
