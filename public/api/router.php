@@ -154,6 +154,26 @@ function saveAuthData(array $data) {
     saveJson('auth.json', $data);
 }
 
+function getAuthEntry(array &$auth, string $email): array {
+    if (is_array($auth[$email] ?? null)) {
+        return $auth[$email];
+    }
+
+    if (!empty($auth['secret'])) {
+        $legacyEntry = [
+            'secret' => $auth['secret'],
+            'enabled' => !empty($auth['enabled']),
+        ];
+        if ($email !== '') {
+            $auth[$email] = $legacyEntry;
+            saveAuthData($auth);
+        }
+        return $legacyEntry;
+    }
+
+    return [];
+}
+
 function buildQrCodeUrl(string $email, string $secret): string {
     $label = rawurlencode('Primecrest Enterprise:' . $email);
     $issuer = rawurlencode('Primecrest Enterprise');
@@ -227,7 +247,7 @@ if ($resource === 'auth') {
             respond(400, ['error' => 'Email query parameter is required.']);
         }
         $auth = getAuthData();
-        $userAuth = is_array($auth[$email] ?? null) ? $auth[$email] : [];
+        $userAuth = getAuthEntry($auth, $email);
         respond(200, [
             'setup' => !empty($userAuth['secret']),
             'enabled' => !empty($userAuth['enabled']),
@@ -260,7 +280,7 @@ if ($resource === 'auth') {
             respond(400, ['error' => 'Email and token are required.']);
         }
         $auth = getAuthData();
-        $userAuth = is_array($auth[$email] ?? null) ? $auth[$email] : [];
+        $userAuth = getAuthEntry($auth, $email);
         $secret = $userAuth['secret'] ?? '';
         if (!$secret) {
             respond(400, ['error' => '2FA is not set up yet for this email.']);
