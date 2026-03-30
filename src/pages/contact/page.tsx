@@ -35,6 +35,7 @@ export default function ContactPage() {
     setLoading(true);
 
     const apiUrl = getContactApiEndpoint(settings.mysqlApiUrl);
+    console.debug('[ContactPage] submitting to', apiUrl, { form });
 
     try {
       const response = await fetch(apiUrl, {
@@ -49,30 +50,33 @@ export default function ContactPage() {
         }),
       });
 
+      const responseText = await response.text();
+      console.debug('[ContactPage] response', response.status, responseText);
+
       if (!response.ok) {
         if ([404, 502, 503].includes(response.status)) {
           handleFallbackEmail();
           return;
         }
 
-        const text = await response.text();
         let errorMsg = 'Failed to send message. Please try again.';
         try {
-          const data = JSON.parse(text);
+          const data = JSON.parse(responseText);
           errorMsg = data.error || errorMsg;
         } catch {
-          errorMsg = text || errorMsg;
+          errorMsg = responseText || errorMsg;
         }
         setError(errorMsg);
         setLoading(false);
         return;
       }
 
-      await response.json();
+      console.debug('[ContactPage] submit success', responseText);
       setLoading(false);
       setSubmitted(true);
       setForm({ name: '', email: '', phone: '', service: '', message: '' });
     } catch (err) {
+      console.error('[ContactPage] submit failed', apiUrl, err);
       handleFallbackEmail();
     }
   };

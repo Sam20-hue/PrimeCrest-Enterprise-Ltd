@@ -8,18 +8,24 @@ export function getDefaultContactApiBase(): string {
   return '';
 }
 
+function normalizeBaseUrl(url?: string): string {
+  if (!url) return '';
+  const cleaned = url.trim().replace(/\/$/, '').replace(/\/api$/i, '');
+  return cleaned;
+}
+
 export function normalizeContactApiUrl(url?: string): string {
-  if (!url) return getDefaultContactApiBase();
-  const trimmed = url.trim().replace(/\/$/, '');
-  if (!trimmed) return getDefaultContactApiBase();
-  if (/^https?:\/\//i.test(trimmed)) return trimmed;
-  if (/^\/\//.test(trimmed)) return `${window.location.protocol}${trimmed}`;
-  if (/^:\d+$/.test(trimmed)) return `${window.location.protocol}//${window.location.hostname}${trimmed}`;
-  return `${window.location.protocol}//${trimmed}`;
+  const normalized = normalizeBaseUrl(url);
+  if (!normalized) return getDefaultContactApiBase();
+  if (/^https?:\/\//i.test(normalized)) return normalized;
+  if (/^\/\//.test(normalized)) return `${window.location.protocol}${normalized}`;
+  if (/^:\d+$/.test(normalized)) return `${window.location.protocol}//${window.location.hostname}${normalized}`;
+  return `${window.location.protocol}//${normalized}`;
 }
 
 function isLocalhostUrl(url: string): boolean {
-  return /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(url.trim());
+  const trimmed = url.trim().replace(/\/$/, '');
+  return /^(?:https?:\/\/)?(localhost|127\.0\.0\.1)(:\d+)?$/i.test(trimmed);
 }
 
 export function getContactApiEndpoint(settingsMysqlApiUrl?: string): string {
@@ -27,13 +33,14 @@ export function getContactApiEndpoint(settingsMysqlApiUrl?: string): string {
     return '/api/contact';
   }
 
+  const normalizedUrl = normalizeContactApiUrl(settingsMysqlApiUrl);
+
   if (typeof window !== 'undefined') {
     const currentHost = window.location.hostname;
-    if (!LOCALHOST_HOSTNAMES.includes(currentHost) && isLocalhostUrl(settingsMysqlApiUrl)) {
+    if (!LOCALHOST_HOSTNAMES.includes(currentHost) && isLocalhostUrl(normalizedUrl)) {
       return '/api/contact';
     }
   }
 
-  const baseUrl = normalizeContactApiUrl(settingsMysqlApiUrl);
-  return `${baseUrl}/api/contact`;
+  return `${normalizedUrl}/api/contact`;
 }

@@ -36,6 +36,7 @@ export default function ServicesPage() {
     setLoading(true);
 
     const apiUrl = getContactApiEndpoint(settings.mysqlApiUrl);
+    console.debug('[ServicesPage] submitting to', apiUrl, { form, service: modalService?.title });
 
     try {
       const response = await fetch(apiUrl, {
@@ -50,7 +51,17 @@ export default function ServicesPage() {
         }),
       });
 
-      const data = await response.json();
+      const responseText = await response.text();
+      console.debug('[ServicesPage] response', response.status, responseText);
+
+      let data: { error?: string } = { error: null };
+      if (responseText) {
+        try {
+          data = JSON.parse(responseText);
+        } catch {
+          data = { error: responseText };
+        }
+      }
 
       if (!response.ok) {
         if ([404, 502, 503].includes(response.status)) {
@@ -67,6 +78,7 @@ export default function ServicesPage() {
       setSubmitted(true);
       setForm({ name: '', email: '', phone: '', message: '' });
     } catch (err) {
+      console.error('[ServicesPage] submit failed', apiUrl, err);
       handleFallbackEmail();
     }
   };

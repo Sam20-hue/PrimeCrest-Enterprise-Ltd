@@ -54,14 +54,18 @@ const getDefaultApiUrl = (): string => {
   return `${protocol}//${hostname}`;
 };
 
+const normalizeBaseApiUrl = (url: string | undefined): string => {
+  if (!url) return '';
+  return url.trim().replace(/\/$/, '').replace(/\/api$/i, '');
+};
+
 const normalizeApiUrl = (url: string | undefined): string => {
-  if (!url) return getDefaultApiUrl();
-  const trimmed = url.trim().replace(/\/$/, '');
-  if (!trimmed) return getDefaultApiUrl();
-  if (/^https?:\/\//i.test(trimmed)) return trimmed;
-  if (/^\/\//.test(trimmed)) return `${window.location.protocol}${trimmed}`;
-  if (/^:\d+$/.test(trimmed)) return `${window.location.protocol}//${window.location.hostname}${trimmed}`;
-  return `${window.location.protocol}//${trimmed}`;
+  const cleaned = normalizeBaseApiUrl(url);
+  if (!cleaned) return getDefaultApiUrl();
+  if (/^https?:\/\//i.test(cleaned)) return cleaned;
+  if (/^\/\//.test(cleaned)) return `${window.location.protocol}${cleaned}`;
+  if (/^:\d+$/.test(cleaned)) return `${window.location.protocol}//${window.location.hostname}${cleaned}`;
+  return `${window.location.protocol}//${cleaned}`;
 };
 
 const getApiUrl = (): string => {

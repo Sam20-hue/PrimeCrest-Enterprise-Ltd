@@ -6,9 +6,9 @@ export default function AboutPage() {
   const t = translations[language].about;
 
   const stats = [
-    { num: '10+', label: 'Years in Business' },
-    { num: '500+', label: 'Projects Completed' },
-    { num: '50+', label: 'Expert Technicians' },
+    { num: '1+', label: 'Years in Business' },
+    { num: '53+', label: 'Projects Completed' },
+    { num: '10+', label: 'Expert Technicians' },
     { num: '24/7', label: 'Support Available' },
   ];
 
