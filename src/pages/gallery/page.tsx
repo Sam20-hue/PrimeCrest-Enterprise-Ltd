@@ -1,12 +1,12 @@
 import { useState } from 'react';
-import { useSiteData } from '../../context/SiteDataContext';
+import { useSiteData, GalleryItem } from '../../context/SiteDataContext';
 import { translations } from '../../i18n/translations';
 
 export default function GalleryPage() {
   const { gallery, language } = useSiteData();
   const t = translations[language].gallery;
   const [activeCategory, setActiveCategory] = useState('All');
-  const [lightbox, setLightbox] = useState<string | null>(null);
+  const [selectedItem, setSelectedItem] = useState<GalleryItem | null>(null);
 
   const categories = ['All', ...Array.from(new Set(gallery.map((g) => g.category)))];
   const filtered = activeCategory === 'All' ? gallery : gallery.filter((g) => g.category === activeCategory);
@@ -55,7 +55,7 @@ export default function GalleryPage() {
             <div
               key={item.id}
               className="group relative overflow-hidden rounded-xl aspect-video cursor-pointer"
-              onClick={() => setLightbox(item.imageUrl)}
+              onClick={() => setSelectedItem(item)}
             >
               <img
                 src={item.imageUrl}
@@ -85,23 +85,32 @@ export default function GalleryPage() {
       </section>
 
       {/* Lightbox */}
-      {lightbox && (
+      {selectedItem && (
         <div
           className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4"
-          onClick={() => setLightbox(null)}
+          onClick={() => setSelectedItem(null)}
         >
           <button
             className="absolute top-6 right-6 w-10 h-10 flex items-center justify-center bg-white/20 rounded-full text-white cursor-pointer hover:bg-white/30"
-            onClick={() => setLightbox(null)}
+            onClick={() => setSelectedItem(null)}
           >
             <i className="ri-close-line text-xl" />
           </button>
-          <img
-            src={lightbox}
-            alt="Gallery"
-            className="max-w-4xl max-h-[90vh] w-full object-contain rounded-lg"
-            onClick={(e) => e.stopPropagation()}
-          />
+          <div className="max-w-4xl w-full bg-white rounded-3xl overflow-hidden shadow-xl">
+            <div className="bg-black/90 p-4">
+              <img
+                src={selectedItem.imageUrl}
+                alt={selectedItem.title}
+                className="w-full max-h-[70vh] object-contain rounded-lg"
+                onClick={(e) => e.stopPropagation()}
+              />
+            </div>
+            <div className="p-6 bg-white text-gray-900">
+              <h3 className="text-2xl font-bold mb-2">{selectedItem.title}</h3>
+              <p className="text-sm text-gray-500 mb-4">{selectedItem.category}</p>
+              <p className="text-gray-700 whitespace-pre-wrap">{selectedItem.description || 'No description available.'}</p>
+            </div>
+          </div>
         </div>
       )}
     </main>

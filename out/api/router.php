@@ -136,7 +136,7 @@ function hotp(string $secret, int $counter, int $digits = 6): string {
 function verifyTotp(string $secret, string $token): bool {
     $timestamp = time();
     $interval = 30;
-    for ($i = -2; $i <= 2; $i++) {
+    for ($i = -1; $i <= 1; $i++) {
         $counter = floor($timestamp / $interval) + $i;
         if (hotp($secret, $counter) === $token) {
             return true;
@@ -157,7 +157,7 @@ function saveAuthData(array $data) {
 function buildQrCodeUrl(string $email, string $secret): string {
     $label = rawurlencode('Primecrest Enterprise:' . $email);
     $issuer = rawurlencode('Primecrest Enterprise');
-    $otpauth = "otpauth://totp/{$label}?secret={$secret}&issuer={$issuer}&algorithm=SHA1&digits=6&period=30";
+    $otpauth = "otpauth://totp/{$label}?secret={$secret}&issuer={$issuer}";
     return 'https://chart.googleapis.com/chart?chs=200x200&cht=qr&chl=' . rawurlencode($otpauth);
 }
 
@@ -222,15 +222,10 @@ if ($resource === 'settings') {
 if ($resource === 'auth') {
     $action = $parts[1] ?? '';
     if ($action === '2fa-status' && $method === 'GET') {
-        $email = trim($_GET['email'] ?? '');
-        if ($email === '') {
-            respond(400, ['error' => 'Email query parameter is required.']);
-        }
         $auth = getAuthData();
-        $userAuth = is_array($auth[$email] ?? null) ? $auth[$email] : [];
         respond(200, [
-            'setup' => !empty($userAuth['secret']),
-            'enabled' => !empty($userAuth['enabled']),
+            'setup' => !empty($auth['secret']),
+            'enabled' => !empty($auth['enabled']),
         ]);
     }
     if ($action === 'setup-2fa' && $method === 'POST') {
@@ -241,10 +236,8 @@ if ($resource === 'auth') {
         }
         $secret = base32Encode(random_bytes(10));
         $auth = getAuthData();
-        $auth[$email] = [
-            'secret' => $secret,
-            'enabled' => false,
-        ];
+        $auth['secret'] = $secret;
+        $auth['enabled'] = false;
         saveAuthData($auth);
         respond(200, [
             'success' => true,
@@ -254,21 +247,19 @@ if ($resource === 'auth') {
     }
     if ($action === 'verify-2fa' && $method === 'POST') {
         $body = getRequestBody() ?: [];
-        $email = trim($body['email'] ?? '');
         $token = trim($body['token'] ?? '');
-        if ($email === '' || $token === '') {
-            respond(400, ['error' => 'Email and token are required.']);
+        if ($token === '') {
+            respond(400, ['error' => 'Token is required.']);
         }
         $auth = getAuthData();
-        $userAuth = is_array($auth[$email] ?? null) ? $auth[$email] : [];
-        $secret = $userAuth['secret'] ?? '';
+        $secret = $auth['secret'] ?? '';
         if (!$secret) {
-            respond(400, ['error' => '2FA is not set up yet for this email.']);
+            respond(400, ['error' => '2FA is not set up yet.']);
         }
         if (!verifyTotp($secret, $token)) {
             respond(401, ['error' => 'Invalid or expired token.']);
         }
-        $auth[$email]['enabled'] = true;
+        $auth['enabled'] = true;
         saveAuthData($auth);
         respond(200, ['success' => true, 'message' => '2FA token verified!']);
     }

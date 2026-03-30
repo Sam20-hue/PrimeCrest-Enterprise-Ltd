@@ -10,8 +10,8 @@ export function getDefaultContactApiBase(): string {
 
 function normalizeBaseUrl(url?: string): string {
   if (!url) return '';
-  const cleaned = url.trim().replace(/\/$/, '').replace(/\/api$/i, '');
-  return cleaned;
+  const trimmed = url.trim().replace(/\/+$/, '');
+  return trimmed.replace(/\/api(?:\/.*)?$/i, '');
 }
 
 export function normalizeContactApiUrl(url?: string): string {
@@ -24,13 +24,18 @@ export function normalizeContactApiUrl(url?: string): string {
 }
 
 function isLocalhostUrl(url: string): boolean {
-  const trimmed = url.trim().replace(/\/$/, '');
-  return /^(?:https?:\/\/)?(localhost|127\.0\.0\.1)(:\d+)?$/i.test(trimmed);
+  const trimmed = url.trim().replace(/\/+$/, '');
+  return /^(?:https?:\/\/)?(localhost|127\.0\.0\.1)(:\d+)?(?:\/.*)?$/i.test(trimmed);
 }
 
 export function getContactApiEndpoint(settingsMysqlApiUrl?: string): string {
+  const endpoints = getContactApiEndpoints(settingsMysqlApiUrl);
+  return endpoints[0];
+}
+
+export function getContactApiEndpoints(settingsMysqlApiUrl?: string): string[] {
   if (!settingsMysqlApiUrl?.trim()) {
-    return '/api/contact';
+    return ['/api/contact.php', '/api/contact'];
   }
 
   const normalizedUrl = normalizeContactApiUrl(settingsMysqlApiUrl);
@@ -38,9 +43,9 @@ export function getContactApiEndpoint(settingsMysqlApiUrl?: string): string {
   if (typeof window !== 'undefined') {
     const currentHost = window.location.hostname;
     if (!LOCALHOST_HOSTNAMES.includes(currentHost) && isLocalhostUrl(normalizedUrl)) {
-      return '/api/contact';
+      return ['/api/contact.php', '/api/contact'];
     }
   }
 
-  return `${normalizedUrl}/api/contact`;
+  return [`${normalizedUrl}/api/contact`, `${normalizedUrl}/api/contact.php`];
 }

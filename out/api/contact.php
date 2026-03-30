@@ -1,5 +1,13 @@
 <?php
 header('Content-Type: application/json; charset=utf-8');
+header('Access-Control-Allow-Origin: *');
+header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
+header('Access-Control-Allow-Headers: Content-Type, Authorization');
+
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    http_response_code(204);
+    exit;
+}
 
 const SMTP_HOST = 'smtp.gmail.com';
 const SMTP_PORT = 587;
@@ -155,6 +163,10 @@ function sendSmtpMail($to, $subject, $html, $from, $replyTo, &$error = null) {
     smtpCommand($fp, 'QUIT', 221);
     fclose($fp);
     return true;
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+    respond(200, ['status' => 'ok', 'message' => 'Contact API is available. Use POST to submit the form.']);
 }
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {

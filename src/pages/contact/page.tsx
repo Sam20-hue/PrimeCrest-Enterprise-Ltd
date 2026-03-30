@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useSiteData } from '../../context/SiteDataContext';
 import { translations } from '../../i18n/translations';
-import { getContactApiEndpoint } from '../../utils/contactApi';
+import { getContactApiEndpoints } from '../../utils/contactApi';
 
 export default function ContactPage() {
   const { settings, services, language } = useSiteData();
@@ -11,6 +11,7 @@ export default function ContactPage() {
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [debugInfo, setDebugInfo] = useState('');
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -32,53 +33,78 @@ export default function ContactPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setDebugInfo('');
     setLoading(true);
 
-    const apiUrl = getContactApiEndpoint(settings.mysqlApiUrl);
-    console.debug('[ContactPage] submitting to', apiUrl, { form });
+    const endpoints = getContactApiEndpoints(settings.mysqlApiUrl);
+    let lastDebug = '';
 
-    try {
-      const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: form.name,
-          email: form.email,
-          phone: form.phone,
-          service: form.service,
-          message: form.message,
-        }),
-      });
+    for (const endpoint of endpoints) {
+      console.debug('[ContactPage] trying endpoint', endpoint, { form });
 
-      const responseText = await response.text();
-      console.debug('[ContactPage] response', response.status, responseText);
+      try {
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: form.name,
+            email: form.email,
+            phone: form.phone,
+            service: form.service,
+            message: form.message,
+          }),
+        });
 
-      if (!response.ok) {
-        if ([404, 502, 503].includes(response.status)) {
-          handleFallbackEmail();
+        const responseText = await response.text();
+        const responseDetails = `POST ${endpoint} => ${response.status} ${response.statusText} | ${responseText}`;
+        console.debug('[ContactPage] response', responseDetails);
+        lastDebug = responseDetails;
+
+        if (!response.ok) {
+          if (endpoints.indexOf(endpoint) < endpoints.length - 1) {
+            continue;
+          }
+
+          if ([404, 502, 503].includes(response.status)) {
+            setDebugInfo(responseDetails);
+            handleFallbackEmail();
+            return;
+          }
+
+          let errorMsg = 'Failed to send message. Please try again.';
+          try {
+            const data = JSON.parse(responseText);
+            errorMsg = data.error || errorMsg;
+          } catch {
+            errorMsg = responseText || errorMsg;
+          }
+          setError(errorMsg);
+          setDebugInfo(responseDetails);
+          setLoading(false);
           return;
         }
 
-        let errorMsg = 'Failed to send message. Please try again.';
-        try {
-          const data = JSON.parse(responseText);
-          errorMsg = data.error || errorMsg;
-        } catch {
-          errorMsg = responseText || errorMsg;
-        }
-        setError(errorMsg);
+        console.debug('[ContactPage] submit success', responseDetails);
         setLoading(false);
+        setSubmitted(true);
+        setForm({ name: '', email: '', phone: '', service: '', message: '' });
+        return;
+      } catch (err) {
+        const errMsg = err instanceof Error ? err.message : String(err);
+        const debugMsg = `FETCH ERROR ${endpoint} => ${errMsg}`;
+        console.error('[ContactPage] submit failed', debugMsg);
+        lastDebug = debugMsg;
+        if (endpoints.indexOf(endpoint) < endpoints.length - 1) {
+          continue;
+        }
+        setDebugInfo(debugMsg);
+        handleFallbackEmail();
         return;
       }
-
-      console.debug('[ContactPage] submit success', responseText);
-      setLoading(false);
-      setSubmitted(true);
-      setForm({ name: '', email: '', phone: '', service: '', message: '' });
-    } catch (err) {
-      console.error('[ContactPage] submit failed', apiUrl, err);
-      handleFallbackEmail();
     }
+
+    setDebugInfo(lastDebug);
+    handleFallbackEmail();
   };
 
   return (
@@ -125,8 +151,8 @@ export default function ContactPage() {
             <div className="p-5 bg-orange-600 rounded-xl text-white">
               <h4 className="font-bold mb-2">Emergency Support</h4>
               <p className="text-orange-100 text-sm mb-3">For urgent security matters, our emergency line is available 24/7.</p>
-              <a href="tel:+254700000000" className="inline-flex items-center gap-2 text-sm font-bold text-white cursor-pointer">
-                <i className="ri-phone-fill" /> +254 700 000 000
+              <a href={`tel:${settings.phone.replace(/[^+\d]/g, '')}`} className="inline-flex items-center gap-2 text-sm font-bold text-white cursor-pointer">
+                <i className="ri-phone-fill" /> {settings.phone}
               </a>
             </div>
           </div>
@@ -152,12 +178,19 @@ export default function ContactPage() {
               <form onSubmit={handleSubmit} className="bg-white rounded-2xl p-8 border border-gray-100 space-y-5">
                 <h3 className="text-2xl font-black text-gray-900 mb-2">Send Us a Message</h3>
                 
-                {error && (
-                  <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                    <p className="text-red-700 text-sm font-semibold flex items-center gap-2">
-                      <i className="ri-alert-fill" />
-                      {error}
-                    </p>
+                {(error || debugInfo) && (
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-4 space-y-2">
+                    {error && (
+                      <p className="text-red-700 text-sm font-semibold flex items-center gap-2">
+                        <i className="ri-alert-fill" />
+                        {error}
+                      </p>
+                    )}
+                    {debugInfo && (
+                      <p className="text-xs text-gray-600 break-words whitespace-pre-wrap">
+                        <strong>Debug:</strong> {debugInfo}
+                      </p>
+                    )}
                   </div>
                 )}
                 

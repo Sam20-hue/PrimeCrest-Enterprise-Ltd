@@ -6,10 +6,11 @@ import AdminGallery from './components/AdminGallery';
 import AdminBlog from './components/AdminBlog';
 import AdminTeam from './components/AdminTeam';
 import AdminContacts from './components/AdminContacts';
+import AdminSubscribers from './components/AdminSubscribers';
 import { useSiteData } from '../../context/SiteDataContext';
 import { mysqlService } from '../../services/mysqlService';
 
-type Tab = 'settings' | 'services' | 'gallery' | 'blog' | 'team' | 'contacts';
+type Tab = 'settings' | 'services' | 'gallery' | 'blog' | 'team' | 'contacts' | 'subscribers';
 
 const tabs: { id: Tab; label: string; icon: string }[] = [
   { id: 'settings', label: 'Settings', icon: 'ri-settings-3-line' },
@@ -18,10 +19,11 @@ const tabs: { id: Tab; label: string; icon: string }[] = [
   { id: 'blog', label: 'Blog', icon: 'ri-article-line' },
   { id: 'team', label: 'Team', icon: 'ri-team-line' },
   { id: 'contacts', label: 'Contacts', icon: 'ri-mail-line' },
+  { id: 'subscribers', label: 'Subscribers', icon: 'ri-mail-send-line' },
 ];
 
 export default function AdminPage() {
-  const { services, gallery, blogPosts, team, contacts, setContacts } = useSiteData();
+  const { services, gallery, blogPosts, team, contacts, subscribers, setContacts } = useSiteData();
   const [isLoggedIn, setIsLoggedIn] = useState(() => {
     return sessionStorage.getItem('pc_admin_session') === '1';
   });
@@ -61,6 +63,7 @@ export default function AdminPage() {
     blog: blogPosts.length,
     team: team.length,
     contacts: contacts.length,
+    subscribers: subscribers.length,
   };
 
   return (
@@ -148,6 +151,7 @@ export default function AdminPage() {
           {activeTab === 'blog' && <AdminBlog />}
           {activeTab === 'team' && <AdminTeam />}
           {activeTab === 'contacts' && <AdminContacts />}
+          {activeTab === 'subscribers' && <AdminSubscribers />}
         </div>
       </main>
     </div>

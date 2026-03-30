@@ -190,7 +190,7 @@ app.post('/api/auth/verify-2fa', async (req, res) => {
     secret: badgeSecret,
     encoding: 'base32',
     token,
-    window: 2,
+    window: 4,
   });
 
   if (verified) {

@@ -1,6 +1,9 @@
 import { Link } from 'react-router-dom';
+import { useSiteData } from '../../../context/SiteDataContext';
 
 export default function CtaBanner() {
+  const { settings } = useSiteData();
+
   return (
     <section className="py-0">
       <div className="grid grid-cols-1 md:grid-cols-2 min-h-[280px]">
@@ -25,9 +28,9 @@ export default function CtaBanner() {
         <div className="bg-gray-900 flex flex-col items-center justify-center px-12 py-16">
           <div className="grid grid-cols-2 gap-8 text-center">
             {[
-              { icon: 'ri-phone-fill', label: 'Call Us', value: '+254 700 000 000' },
-              { icon: 'ri-mail-fill', label: 'Email Us', value: 'info@primecrest.co.ke' },
-              { icon: 'ri-map-pin-fill', label: 'Visit Us', value: 'Nairobi, Kenya' },
+              { icon: 'ri-phone-fill', label: 'Call Us', value: settings.phone },
+              { icon: 'ri-mail-fill', label: 'Email Us', value: settings.email },
+              { icon: 'ri-map-pin-fill', label: 'Visit Us', value: settings.address },
               { icon: 'ri-time-fill', label: 'Open Hours', value: 'Mon–Fri 8AM–6PM' },
             ].map((item) => (
               <div key={item.label} className="flex flex-col items-center gap-2">

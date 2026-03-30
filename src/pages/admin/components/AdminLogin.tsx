@@ -111,7 +111,7 @@ export default function AdminLogin({ onLogin }: AdminLoginProps) {
       setError('');
       onLogin();
     } else {
-      setError(response.error || 'Invalid token. Please try again.');
+      setError(`${response.error || 'Invalid token. Please try again.'} If this continues, press Reset 2FA and scan the QR code again.`);
       setStatus('');
     }
   };
@@ -135,7 +135,7 @@ export default function AdminLogin({ onLogin }: AdminLoginProps) {
       setError('');
       onLogin();
     } else {
-      setError(response.error || 'Invalid token. Please try again.');
+      setError(`${response.error || 'Invalid token. Please try again.'} If this continues, press Reset 2FA and scan the QR code again.`);
       setStatus('');
     }
   };
@@ -263,9 +263,6 @@ export default function AdminLogin({ onLogin }: AdminLoginProps) {
 
         {status && <p className="text-green-400 text-xs font-medium mt-3 text-center">{status}</p>}
         {error && <p className="text-red-400 text-xs font-medium mt-3 text-center">{error}</p>}
-        <p className="text-gray-600 text-xs text-center mt-6">
-          Admin email: {settings.adminEmail || 'samsonakula3@gmail.com'} (change in Settings)
-        </p>
       </div>
     </div>
   );

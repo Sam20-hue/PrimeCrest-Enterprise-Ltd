@@ -31,6 +31,8 @@ export interface SiteSettings {
   heroSubtitle: string;
   socialMedia: SocialMedia;
   mysqlApiUrl: string;
+  privacyPolicy: string;
+  termsOfService: string;
 }
 
 export interface Service {
@@ -95,13 +97,16 @@ interface SiteDataContextType {
   testimonials: Testimonial[];
   team: TeamMember[];
   contacts: Contact[];
+  subscribers: string[];
   updateSettings: (settings: SiteSettings) => void;
+  addSubscriber: (email: string) => boolean;
   setServices: (services: Service[]) => void;
   setGallery: (gallery: GalleryItem[]) => void;
   setBlogPosts: (posts: BlogPost[]) => void;
   setTestimonials: (t: Testimonial[]) => void;
   setTeam: (team: TeamMember[]) => void;
   setContacts: (contacts: Contact[]) => void;
+  setSubscribers: (emails: string[]) => void;
   language: Lang;
   setLanguage: (lang: Lang) => void;
 }
@@ -110,7 +115,6 @@ const defaultSettings: SiteSettings = {
   logoUrl: 'https://static.readdy.ai/image/2645941fdc0e183360970fc234d34970/773766d2f6ed38db8ecc7ecb533b68b7.jpeg',
   companyName: 'PRIMECREST ENTERPRISE LTD',
   tagline: 'Your Trusted Security & Technology Partner',
-  phone: '+254 700 000 000',
   email: 'primecrestenterprise@gmail.com',
   phone: '0721579821',
   address: 'Nairobi, Kenya',
@@ -119,6 +123,8 @@ const defaultSettings: SiteSettings = {
   adminEmail: 'samsonakula3@gmail.com',
   heroTitle: 'Enterprise Security & Technology Solutions',
   heroSubtitle: 'CCTV • Vault Engineering • Biometric Systems • Alarm Systems • IT Solutions',
+  privacyPolicy: 'We respect your privacy. Your contact details are used only to deliver requested updates, respond to inquiries, and improve our services.',
+  termsOfService: 'By using this site, you agree to our terms of service. We provide security solutions with professional care and responsible handling of your data.',
   socialMedia: {
     facebook: '',
     instagram: '',
@@ -129,11 +135,6 @@ const defaultSettings: SiteSettings = {
     tiktok: '',
   },
   mysqlApiUrl: '',
-};
-
-const FIXED_COMPANY_INFO = {
-  email: 'primecrestenterprise@gmail.com',
-  phone: '0721579821',
 };
 
 function loadFromStorage<T>(key: string, fallback: T): T {
@@ -147,7 +148,7 @@ function loadFromStorage<T>(key: string, fallback: T): T {
 
 function isLocalhostApiUrl(url?: string): boolean {
   if (!url) return false;
-  return /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(url.trim());
+  return /^(?:https?:\/\/)?(localhost|127\.0\.0\.1)(:\d+)?(?:\/.*)?$/i.test(url.trim());
 }
 
 const SiteDataContext = createContext<SiteDataContextType | null>(null);
@@ -158,7 +159,6 @@ export function SiteDataProvider({ children }: { children: ReactNode }) {
     return {
       ...defaultSettings,
       ...stored,
-      ...FIXED_COMPANY_INFO,
       socialMedia: { ...defaultSettings.socialMedia, ...(stored.socialMedia || {}) },
     };
   });
@@ -178,6 +178,7 @@ export function SiteDataProvider({ children }: { children: ReactNode }) {
     loadFromStorage('pc_team', mockTeam)
   );
   const [contacts, setContactsState] = useState<Contact[]>([]);
+  const [subscribers, setSubscribersState] = useState<string[]>(() => loadFromStorage('pc_subscribers', []));
   const [language, setLanguageState] = useState<Lang>(() => {
     const stored = localStorage.getItem('pc_language') as Lang;
     const validLangs: Lang[] = ['en', 'fr', 'es', 'ar', 'de', 'pt'];
@@ -201,10 +202,23 @@ export function SiteDataProvider({ children }: { children: ReactNode }) {
   };
 
   const updateSettings = (s: SiteSettings) => {
-    const fixed = { ...s, ...FIXED_COMPANY_INFO };
-    setSettings(fixed);
-    localStorage.setItem('pc_settings', JSON.stringify(fixed));
-    syncToApi(fixed, services, gallery, blogPosts, testimonials, team);
+    setSettings(s);
+    localStorage.setItem('pc_settings', JSON.stringify(s));
+    syncToApi(s, services, gallery, blogPosts, testimonials, team);
+  };
+
+  const addSubscriber = (email: string): boolean => {
+    const normalized = email.trim().toLowerCase();
+    if (!normalized || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)) {
+      return false;
+    }
+    if (subscribers.includes(normalized)) {
+      return false;
+    }
+    const updated = [normalized, ...subscribers];
+    setSubscribersState(updated);
+    localStorage.setItem('pc_subscribers', JSON.stringify(updated));
+    return true;
   };
 
   const setServices = (s: Service[]) => {
@@ -241,6 +255,11 @@ export function SiteDataProvider({ children }: { children: ReactNode }) {
     setContactsState(c);
   };
 
+  const setSubscribers = (emails: string[]) => {
+    setSubscribersState(emails);
+    localStorage.setItem('pc_subscribers', JSON.stringify(emails));
+  };
+
   const setLanguage = (lang: Lang) => {
     setLanguageState(lang);
     localStorage.setItem('pc_language', lang);
@@ -251,7 +270,6 @@ export function SiteDataProvider({ children }: { children: ReactNode }) {
     const merged = {
       ...defaultSettings,
       ...stored,
-      ...FIXED_COMPANY_INFO,
       socialMedia: { ...defaultSettings.socialMedia, ...(stored?.socialMedia || {}) },
     };
     const currentHost = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
@@ -282,7 +300,6 @@ export function SiteDataProvider({ children }: { children: ReactNode }) {
           const remoteSettings = {
             ...defaultSettings,
             ...(settingsRes.data as Partial<SiteSettings>),
-            ...FIXED_COMPANY_INFO,
             socialMedia: {
               ...defaultSettings.socialMedia,
               ...((settingsRes.data as Partial<SiteSettings>).socialMedia || {}),
@@ -341,6 +358,8 @@ export function SiteDataProvider({ children }: { children: ReactNode }) {
         setTestimonials,
         setTeam,
         setContacts,
+        subscribers,
+        setSubscribers,
         language,
         setLanguage,
       }}

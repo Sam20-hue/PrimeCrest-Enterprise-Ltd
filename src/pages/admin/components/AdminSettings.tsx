@@ -45,8 +45,6 @@ export default function AdminSettings() {
     e.preventDefault();
     const fixedForm = {
       ...form,
-      email: 'primecrestenterprise@gmail.com',
-      phone: '0721579821',
       logoUrl: logoPreview,
     };
     updateSettings(fixedForm);
@@ -190,8 +188,8 @@ export default function AdminSettings() {
           {([
             { name: 'companyName', label: 'Company Name', type: 'text', placeholder: 'PRIMECREST ENTERPRISE LTD', disabled: false },
             { name: 'tagline', label: 'Tagline', type: 'text', placeholder: 'Your Trusted Security Partner', disabled: false },
-            { name: 'phone', label: 'Phone Number', type: 'tel', placeholder: '0721579821', disabled: true },
-            { name: 'email', label: 'Email Address', type: 'email', placeholder: 'primecrestenterprise@gmail.com', disabled: true },
+            { name: 'phone', label: 'Phone Number', type: 'tel', placeholder: '0721579821', disabled: false },
+            { name: 'email', label: 'Email Address', type: 'email', placeholder: 'primecrestenterprise@gmail.com', disabled: false },
             { name: 'address', label: 'Physical Address', type: 'text', placeholder: 'Nairobi, Kenya', disabled: false },
           ] as const).map((field) => (
             <div key={field.name}>
@@ -207,9 +205,6 @@ export default function AdminSettings() {
               />
             </div>
           ))}
-          <div className="text-xs text-gray-500">
-            <p>Company email and phone are fixed to primecrestenterprise@gmail.com and 0721579821.</p>
-          </div>
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-2">About Text</label>
             <textarea
@@ -220,6 +215,30 @@ export default function AdminSettings() {
               maxLength={500}
               className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-orange-400 resize-none"
               placeholder="Company description..."
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">Privacy Policy</label>
+            <textarea
+              name="privacyPolicy"
+              value={form.privacyPolicy}
+              onChange={handleChange}
+              rows={4}
+              maxLength={1000}
+              className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-orange-400 resize-none"
+              placeholder="Enter your privacy policy text here"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">Terms of Service</label>
+            <textarea
+              name="termsOfService"
+              value={form.termsOfService}
+              onChange={handleChange}
+              rows={4}
+              maxLength={1000}
+              className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-orange-400 resize-none"
+              placeholder="Enter your terms of service text here"
             />
           </div>
         </div>

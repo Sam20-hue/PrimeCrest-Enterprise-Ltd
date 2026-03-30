@@ -4,17 +4,32 @@ import { useSiteData } from '../../context/SiteDataContext';
 import { translations } from '../../i18n/translations';
 
 export default function Footer() {
-  const { settings, language } = useSiteData();
+  const { settings, language, subscribers, addSubscriber } = useSiteData();
   const t = translations[language].footer;
   const [email, setEmail] = useState('');
   const [subscribed, setSubscribed] = useState(false);
+  const [feedback, setFeedback] = useState('');
+  const [policyModal, setPolicyModal] = useState<'privacy' | 'terms' | null>(null);
 
   const handleSubscribe = (e: React.FormEvent) => {
     e.preventDefault();
-    if (email.trim()) {
-      setSubscribed(true);
-      setEmail('');
+    const normalized = email.trim().toLowerCase();
+    if (!normalized || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)) {
+      setFeedback('Please enter a valid email address.');
+      return;
     }
+    if (subscribers.includes(normalized)) {
+      setFeedback('This email is already subscribed.');
+      return;
+    }
+    const added = addSubscriber(normalized);
+    if (!added) {
+      setFeedback('Unable to subscribe with this email.');
+      return;
+    }
+    setSubscribed(true);
+    setEmail('');
+    setFeedback('You are now subscribed to our newsletter.');
   };
 
   const serviceLinks = [
@@ -89,7 +104,6 @@ export default function Footer() {
                     <i className={`${icon} text-sm`} />
                   </span>
                 ))}
-                <span className="text-xs text-gray-600 self-center ml-1">Add links in Admin</span>
               </div>
             )}
           </div>
@@ -127,20 +141,29 @@ export default function Footer() {
             <h4 className="text-white font-semibold text-base mb-3">{t.newsletter_title}</h4>
             <p className="text-sm text-gray-400 mb-4">{t.newsletter_desc}</p>
             {subscribed ? (
-              <p className="text-sm text-orange-400 font-medium">Thanks for subscribing!</p>
+              <div>
+                <p className="text-sm text-orange-400 font-medium">Thanks for subscribing!</p>
+                {feedback && <p className="text-xs text-gray-300 mt-2">{feedback}</p>}
+              </div>
             ) : (
-              <form onSubmit={handleSubscribe} className="flex gap-2">
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder={t.email_placeholder}
-                  className="flex-1 px-3 py-2 text-sm bg-gray-800 border border-gray-700 rounded-md text-white placeholder-gray-500 focus:outline-none focus:border-orange-500"
-                  required
-                />
-                <button type="submit" className="px-4 py-2 bg-orange-600 text-white text-sm rounded-md hover:bg-orange-700 transition-colors cursor-pointer whitespace-nowrap">
-                  {t.subscribe}
-                </button>
+              <form onSubmit={handleSubscribe} className="flex flex-col gap-2">
+                <div className="flex gap-2">
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => {
+                      setEmail(e.target.value);
+                      setFeedback('');
+                    }}
+                    placeholder={t.email_placeholder}
+                    className="flex-1 px-3 py-2 text-sm bg-gray-800 border border-gray-700 rounded-md text-white placeholder-gray-500 focus:outline-none focus:border-orange-500"
+                    required
+                  />
+                  <button type="submit" className="px-4 py-2 bg-orange-600 text-white text-sm rounded-md hover:bg-orange-700 transition-colors cursor-pointer whitespace-nowrap">
+                    {t.subscribe}
+                  </button>
+                </div>
+                {feedback && <p className="text-xs text-gray-300">{feedback}</p>}
               </form>
             )}
             <div className="mt-6 space-y-2 text-sm text-gray-400">
@@ -165,11 +188,36 @@ export default function Footer() {
         <div className="max-w-7xl mx-auto px-6 py-5 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-gray-500">
           <p>© {new Date().getFullYear()} {settings.companyName}. {t.rights}</p>
           <div className="flex gap-4">
-            <a href="#" className="hover:text-orange-400 cursor-pointer">{t.privacy}</a>
-            <a href="#" className="hover:text-orange-400 cursor-pointer">{t.terms}</a>
+            <button type="button" onClick={() => setPolicyModal('privacy')} className="hover:text-orange-400 cursor-pointer text-left text-sm">
+              {t.privacy}
+            </button>
+            <button type="button" onClick={() => setPolicyModal('terms')} className="hover:text-orange-400 cursor-pointer text-left text-sm">
+              {t.terms}
+            </button>
           </div>
         </div>
       </div>
+
+      {policyModal && (
+        <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4">
+          <div className="max-w-3xl w-full bg-white rounded-3xl overflow-hidden shadow-xl">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+              <div>
+                <h3 className="text-lg font-bold text-gray-900">
+                  {policyModal === 'privacy' ? t.privacy : t.terms}
+                </h3>
+                <p className="text-xs text-gray-500 mt-1">Read the latest site policy here.</p>
+              </div>
+              <button onClick={() => setPolicyModal(null)} className="text-gray-500 hover:text-gray-900">
+                <i className="ri-close-line text-xl" />
+              </button>
+            </div>
+            <div className="p-6 text-sm leading-relaxed text-gray-700">
+              {policyModal === 'privacy' ? settings.privacyPolicy : settings.termsOfService}
+            </div>
+          </div>
+        </div>
+      )}
     </footer>
   );
 }

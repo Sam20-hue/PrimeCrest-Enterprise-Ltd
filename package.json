@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "postbuild": "node -e \"const fs=require('fs'); const src='public/.htaccess'; const dest='out/.htaccess'; if (fs.existsSync(src)) fs.copyFileSync(src, dest);\"",
     "preview": "vite preview",
     "start": "npx serve -s out -l 3000",
     "lint": "eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0",

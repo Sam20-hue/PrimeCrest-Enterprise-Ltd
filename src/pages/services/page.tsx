@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useSiteData } from '../../context/SiteDataContext';
 import { translations } from '../../i18n/translations';
-import { getContactApiEndpoint } from '../../utils/contactApi';
+import { getContactApiEndpoints } from '../../utils/contactApi';
 
 export default function ServicesPage() {
   const { services, settings, language } = useSiteData();
@@ -12,6 +12,7 @@ export default function ServicesPage() {
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState('');
+  const [debugInfo, setDebugInfo] = useState('');
 
   const handleFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -33,54 +34,79 @@ export default function ServicesPage() {
   const handleSendEmail = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setDebugInfo('');
     setLoading(true);
 
-    const apiUrl = getContactApiEndpoint(settings.mysqlApiUrl);
-    console.debug('[ServicesPage] submitting to', apiUrl, { form, service: modalService?.title });
+    const endpoints = getContactApiEndpoints(settings.mysqlApiUrl);
+    let lastDebug = '';
 
-    try {
-      const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: form.name,
-          email: form.email,
-          phone: form.phone,
-          service: modalService?.title || '',
-          message: form.message,
-        }),
-      });
+    for (const endpoint of endpoints) {
+      console.debug('[ServicesPage] trying endpoint', endpoint, { form, service: modalService?.title });
 
-      const responseText = await response.text();
-      console.debug('[ServicesPage] response', response.status, responseText);
+      try {
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: form.name,
+            email: form.email,
+            phone: form.phone,
+            service: modalService?.title || '',
+            message: form.message,
+          }),
+        });
 
-      let data: { error?: string } = { error: null };
-      if (responseText) {
-        try {
-          data = JSON.parse(responseText);
-        } catch {
-          data = { error: responseText };
+        const responseText = await response.text();
+        const responseDetails = `POST ${endpoint} => ${response.status} ${response.statusText} | ${responseText}`;
+        console.debug('[ServicesPage] response', responseDetails);
+        lastDebug = responseDetails;
+
+        let data: { error?: string } = { error: null };
+        if (responseText) {
+          try {
+            data = JSON.parse(responseText);
+          } catch {
+            data = { error: responseText };
+          }
         }
-      }
 
-      if (!response.ok) {
-        if ([404, 502, 503].includes(response.status)) {
-          handleFallbackEmail();
+        if (!response.ok) {
+          if (endpoints.indexOf(endpoint) < endpoints.length - 1) {
+            continue;
+          }
+
+          if ([404, 502, 503].includes(response.status)) {
+            setDebugInfo(responseDetails);
+            handleFallbackEmail();
+            return;
+          }
+
+          setError(data.error || 'Failed to send message. Please try again.');
+          setDebugInfo(responseDetails);
+          setLoading(false);
           return;
         }
 
-        setError(data.error || 'Failed to send message. Please try again.');
         setLoading(false);
+        setSubmitted(true);
+        setForm({ name: '', email: '', phone: '', message: '' });
+        return;
+      } catch (err) {
+        const errMsg = err instanceof Error ? err.message : String(err);
+        const debugMsg = `FETCH ERROR ${endpoint} => ${errMsg}`;
+        console.error('[ServicesPage] submit failed', debugMsg);
+        lastDebug = debugMsg;
+        if (endpoints.indexOf(endpoint) < endpoints.length - 1) {
+          continue;
+        }
+        setDebugInfo(debugMsg);
+        handleFallbackEmail();
         return;
       }
-
-      setLoading(false);
-      setSubmitted(true);
-      setForm({ name: '', email: '', phone: '', message: '' });
-    } catch (err) {
-      console.error('[ServicesPage] submit failed', apiUrl, err);
-      handleFallbackEmail();
     }
+
+    setDebugInfo(lastDebug);
+    handleFallbackEmail();
   };
 
   const openModal = (service: any) => {
@@ -217,12 +243,19 @@ export default function ServicesPage() {
                 </div>
               ) : (
                 <form onSubmit={handleSendEmail} className="space-y-4">
-                  {error && (
-                    <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                      <p className="text-red-700 text-sm font-semibold flex items-center gap-2">
-                        <i className="ri-alert-fill" />
-                        {error}
-                      </p>
+                  {(error || debugInfo) && (
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-4 space-y-2">
+                      {error && (
+                        <p className="text-red-700 text-sm font-semibold flex items-center gap-2">
+                          <i className="ri-alert-fill" />
+                          {error}
+                        </p>
+                      )}
+                      {debugInfo && (
+                        <p className="text-xs text-gray-600 break-words whitespace-pre-wrap">
+                          <strong>Debug:</strong> {debugInfo}
+                        </p>
+                      )}
                     </div>
                   )}
 

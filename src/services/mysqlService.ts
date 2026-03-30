@@ -56,7 +56,9 @@ const getDefaultApiUrl = (): string => {
 
 const normalizeBaseApiUrl = (url: string | undefined): string => {
   if (!url) return '';
-  return url.trim().replace(/\/$/, '').replace(/\/api$/i, '');
+  const trimmed = url.trim().replace(/\/+$/, '');
+  const apiIndex = trimmed.toLowerCase().indexOf('/api');
+  return apiIndex === -1 ? trimmed : trimmed.substring(0, apiIndex);
 };
 
 const normalizeApiUrl = (url: string | undefined): string => {
@@ -77,10 +79,10 @@ const getApiUrl = (): string => {
       const normalized = normalizeApiUrl(settings.mysqlApiUrl);
       const currentHostname = window.location.hostname || 'localhost';
       const isCurrentLocal = currentHostname === 'localhost' || currentHostname === '127.0.0.1';
-      const isLocalUrl = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(normalized || '');
+      const isLocalUrl = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?(\/.*)?$/i.test(normalized || '');
 
       if (!isCurrentLocal && isLocalUrl) {
-        // Ignore stale local development API URL when not running locally.
+        console.warn('[mysqlService] Ignoring local API URL on non-local host:', normalized);
         return preferred;
       }
 

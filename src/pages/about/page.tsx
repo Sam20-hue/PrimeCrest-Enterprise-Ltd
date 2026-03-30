@@ -104,12 +104,21 @@ export default function AboutPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             {team.map((member) => (
               <div key={member.id} className="group text-center">
-                <div className="w-32 h-32 mx-auto rounded-full overflow-hidden mb-4 border-4 border-orange-100 group-hover:border-orange-400 transition-colors">
-                  <img
-                    src={member.imageUrl}
-                    alt={member.name}
-                    className="w-full h-full object-cover object-top"
-                  />
+                <div className="w-32 h-32 mx-auto rounded-full overflow-hidden mb-4 border-4 border-orange-100 group-hover:border-orange-400 transition-colors bg-gray-100 flex items-center justify-center">
+                  {member.imageUrl ? (
+                    <img
+                      src={member.imageUrl}
+                      alt={member.name}
+                      className="w-full h-full object-cover object-top"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = '';
+                      }}
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-gray-400">
+                      <i className="ri-user-line text-4xl" />
+                    </div>
+                  )}
                 </div>
                 <h3 className="font-bold text-gray-900 text-base">{member.name}</h3>
                 <p className="text-sm text-orange-600">{member.role}</p>
