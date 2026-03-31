@@ -8,7 +8,7 @@ interface AdminLoginProps {
 
 export default function AdminLogin({ onLogin }: AdminLoginProps) {
   const { settings } = useSiteData();
-  const [email, setEmail] = useState(settings.adminEmail || '');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [token, setToken] = useState('');
   const [step, setStep] = useState<'password' | 'setup' | 'verify'>('password');
@@ -179,8 +179,9 @@ export default function AdminLogin({ onLogin }: AdminLoginProps) {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-600 focus:outline-none focus:border-orange-500 text-sm"
-                placeholder="Enter admin email"
+                placeholder="Enter your admin email (not pre-filled or visible)"
               />
+              <p className="text-xs text-gray-500 mt-2">This field is for login only and does not display the saved admin email.</p>
             </div>
 
             <div>
