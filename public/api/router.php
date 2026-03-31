@@ -294,6 +294,19 @@ if ($resource === 'auth') {
         saveAuthData($auth);
         respond(200, ['success' => true, 'message' => '2FA token verified!']);
     }
+    if ($action === 'reset-2fa' && $method === 'POST') {
+        $body = getRequestBody() ?: [];
+        $email = trim($body['email'] ?? '');
+        if ($email === '') {
+            respond(400, ['error' => 'Email is required.']);
+        }
+        $auth = getAuthData();
+        if (isset($auth[$email])) {
+            unset($auth[$email]);
+            saveAuthData($auth);
+        }
+        respond(200, ['success' => true, 'message' => '2FA reset. A new QR code will be required on next login.']);
+    }
     respond(404, ['error' => 'Auth endpoint not found.']);
 }
 

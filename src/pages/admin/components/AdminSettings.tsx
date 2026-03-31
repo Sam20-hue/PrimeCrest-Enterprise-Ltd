@@ -1,16 +1,22 @@
 import { useSiteData, SiteSettings, SocialMedia } from '../../../context/SiteDataContext';
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { mysqlService } from '../../../services/mysqlService';
 
 export default function AdminSettings() {
   const { settings, updateSettings } = useSiteData();
   const [form, setForm] = useState<SiteSettings>({ ...settings });
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [saved, setSaved] = useState(false);
+  const [passwordError, setPasswordError] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [mysqlStatus, setMysqlStatus] = useState<'idle' | 'testing' | 'ok' | 'fail'>('idle');
   const [mysqlMsg, setMysqlMsg] = useState('');
+  const [twoFaActive, setTwoFaActive] = useState(false);
+  const [checkingTwoFa, setCheckingTwoFa] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [logoPreview, setLogoPreview] = useState<string>(form.logoUrl);
-  const isDirty = JSON.stringify(form) !== JSON.stringify(settings);
+  const isDirty = JSON.stringify(form) !== JSON.stringify(settings) || newPassword.length > 0 || confirmPassword.length > 0;
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -41,16 +47,88 @@ export default function AdminSettings() {
     reader.readAsDataURL(file);
   };
 
+  const isPasswordStrong = (password: string) => {
+    if (!password) return true;
+    return /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/.test(password);
+  };
+
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
+    setPasswordError('');
+
     const fixedForm = {
       ...form,
       logoUrl: logoPreview,
+      adminPassword: settings.adminPassword,
     };
+
+    if (newPassword) {
+      if (!confirmPassword) {
+        setPasswordError('Please confirm your new password.');
+        return;
+      }
+      if (newPassword !== confirmPassword) {
+        setPasswordError('Passwords do not match.');
+        return;
+      }
+      if (!isPasswordStrong(newPassword)) {
+        setPasswordError('Password must be at least 8 characters and include uppercase, lowercase, and numbers.');
+        return;
+      }
+      const confirmed = window.confirm(
+        'Confirm password change? This will permanently update the admin password.'
+      );
+      if (!confirmed) {
+        return;
+      }
+      fixedForm.adminPassword = newPassword;
+    }
+
     updateSettings(fixedForm);
     setSaved(true);
+    setNewPassword('');
+    setConfirmPassword('');
+    setPasswordError('');
     setTimeout(() => setSaved(false), 2500);
   };
+
+  const [twoFaStatus, setTwoFaStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
+  const [twoFaMessage, setTwoFaMessage] = useState('');
+
+  const handleReset2fa = async () => {
+    setTwoFaStatus('saving');
+    setTwoFaMessage('Resetting 2FA...');
+    const authEmail = form.adminEmail.trim() || settings.adminEmail;
+    const result = await mysqlService.reset2fa(authEmail);
+    if (result.ok) {
+      setTwoFaStatus('success');
+      setTwoFaMessage(result.data?.message || '2FA has been reset. Next login will require a new QR scan.');
+      localStorage.removeItem('pc_2fa_setup');
+      localStorage.removeItem('pc_2fa_setup_email');
+      setTwoFaActive(false);
+    } else {
+      setTwoFaStatus('error');
+      setTwoFaMessage(result.error || 'Failed to reset 2FA.');
+    }
+  };
+
+  useEffect(() => {
+    const fetchTwoFaStatus = async () => {
+      setCheckingTwoFa(true);
+      const authEmail = form.adminEmail.trim() || settings.adminEmail;
+      if (!authEmail) {
+        setTwoFaActive(false);
+        setCheckingTwoFa(false);
+        return;
+      }
+
+      const statusResult = await mysqlService.check2fa(authEmail);
+      setTwoFaActive(statusResult.ok && !!statusResult.data?.enabled);
+      setCheckingTwoFa(false);
+    };
+
+    fetchTwoFaStatus();
+  }, [form.adminEmail, settings.adminEmail]);
 
   const handleTestMySQL = async () => {
     setMysqlStatus('testing');
@@ -350,16 +428,48 @@ export default function AdminSettings() {
           <h3 className="font-bold text-gray-900">Security</h3>
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-2">Admin Password</label>
-            <input
-              type="password"
-              name="adminPassword"
-              value={form.adminPassword}
-              onChange={handleChange}
-              className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-orange-400"
-              placeholder="Enter new password"
-            />
-            <p className="text-xs text-gray-400 mt-2">Change your admin panel password here. Keep it secure.</p>
+            <div className="relative">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                name="newPassword"
+                autoComplete="new-password"
+                value={newPassword}
+                onChange={(e) => {
+                  setNewPassword(e.target.value);
+                  if (passwordError) setPasswordError('');
+                }}
+                className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-orange-400"
+                placeholder="Enter new password"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((prev) => !prev)}
+                className="absolute right-3 top-3 text-xs text-gray-600 hover:text-gray-900"
+              >
+                {showPassword ? 'Hide' : 'Show'}
+              </button>
+            </div>
+            <p className="text-xs text-gray-400 mt-2">
+              Leave blank to keep the current password. New passwords must be 8+ chars with uppercase, lowercase, and numbers.
+            </p>
           </div>
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">Confirm Password</label>
+            <input
+              type={showPassword ? 'text' : 'password'}
+              name="confirmPassword"
+              value={confirmPassword}
+              onChange={(e) => {
+                setConfirmPassword(e.target.value);
+                if (passwordError) setPasswordError('');
+              }}
+              className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-orange-400"
+              placeholder="Confirm new password"
+            />
+          </div>
+          {passwordError && (
+            <p className="text-sm text-red-600 mt-2">{passwordError}</p>
+          )}
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-2">Admin Verification Email</label>
             <input
@@ -371,6 +481,27 @@ export default function AdminSettings() {
               placeholder="samsonakula3@gmail.com"
             />
             <p className="text-xs text-gray-400 mt-2">Verification codes will be sent to this email during login.</p>
+          </div>
+          <div className="flex flex-col gap-3">
+            {twoFaActive ? (
+              <button
+                type="button"
+                onClick={handleReset2fa}
+                disabled={twoFaStatus === 'saving'}
+                className="w-full py-3 bg-red-600 text-white font-bold rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Reset 2FA (Force new QR scan)
+              </button>
+            ) : (
+              <div className="rounded-lg border border-gray-200 p-3 bg-gray-50 text-sm text-gray-600">
+                {checkingTwoFa ? 'Checking 2FA status...' : '2FA is not active for this admin email.'}
+              </div>
+            )}
+            {twoFaMessage && (
+              <p className={`text-sm ${twoFaStatus === 'error' ? 'text-red-600' : 'text-green-600'}`}>
+                {twoFaMessage}
+              </p>
+            )}
           </div>
         </div>
 

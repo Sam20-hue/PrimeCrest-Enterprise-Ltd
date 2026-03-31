@@ -213,6 +213,25 @@ app.post('/api/auth/verify-2fa', async (req, res) => {
   }
 });
 
+// Reset 2FA setup for admin email
+app.post('/api/auth/reset-2fa', async (req, res) => {
+  const { email } = req.body;
+  if (!email) return res.status(400).json({ error: 'Email is required' });
+
+  adminSecrets.delete(email);
+
+  try {
+    const [settingsRows] = await pool.query('SELECT id FROM settings LIMIT 1');
+    if (settingsRows.length > 0) {
+      await pool.query('UPDATE settings SET admin2faSecret = NULL, admin2faEnabled = 0 WHERE id = ?', [settingsRows[0].id]);
+    }
+    res.json({ success: true, message: '2FA has been reset. A new QR code will be required on next login.' });
+  } catch (err) {
+    console.error('2FA reset failed:', err);
+    res.status(500).json({ error: 'Unable to reset 2FA at this time.' });
+  }
+});
+
 // Check if 2FA setup exists for admin
 app.get('/api/auth/2fa-status', async (req, res) => {
   const email = req.query.email;

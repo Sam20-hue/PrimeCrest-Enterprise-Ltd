@@ -25,7 +25,7 @@
       "database": "primecrest_enterprise",
       "authenticationType": "SqlLogin",
       "user": "root",
-      "password": "Sam20???",
+      "password": "",
       "emptyPasswordInput": false,
       "savePassword": true,
       "profileName": "Primecrest MySQL"

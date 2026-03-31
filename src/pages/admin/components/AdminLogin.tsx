@@ -24,22 +24,24 @@ export default function AdminLogin({ onLogin }: AdminLoginProps) {
   useEffect(() => {
     const checkSavedState = async () => {
       setIs2faChecking(true);
-      const email = settings.adminEmail || 'samsonakula3@gmail.com';
-      const statusRes = await mysqlService.check2fa(email);
+      const defaultEmail = 'samsonakula3@gmail.com';
+      const currentEmail = settings.adminEmail || defaultEmail;
+      const statusRes = await mysqlService.check2fa(currentEmail);
       const savedLocal = localStorage.getItem('pc_2fa_setup') === 'true';
-      
+      const savedEmail = localStorage.getItem('pc_2fa_setup_email');
+      const localEmailMatches = savedEmail === currentEmail;
+
       if (statusRes.ok && (statusRes.data?.setup || statusRes.data?.enabled)) {
         setIs2faSetup(true);
         localStorage.setItem('pc_2fa_setup', 'true');
-      } else if (!statusRes.ok && savedLocal) {
-        // fallback when backend temporarily unreachable
+        localStorage.setItem('pc_2fa_setup_email', currentEmail);
+      } else if (!statusRes.ok && savedLocal && localEmailMatches) {
         setIs2faSetup(true);
         setError('2FA server unavailable, using local setup state fallback.');
       } else {
         setIs2faSetup(false);
-        if (!savedLocal) {
-          localStorage.removeItem('pc_2fa_setup');
-        }
+        localStorage.removeItem('pc_2fa_setup');
+        localStorage.removeItem('pc_2fa_setup_email');
       }
       setIs2faChecking(false);
     };
@@ -111,6 +113,7 @@ export default function AdminLogin({ onLogin }: AdminLoginProps) {
 
     if (response.ok) {
       localStorage.setItem('pc_2fa_setup', 'true');
+      localStorage.setItem('pc_2fa_setup_email', authEmail);
       setIs2faSetup(true);
       setError('');
       onLogin();
@@ -135,6 +138,7 @@ export default function AdminLogin({ onLogin }: AdminLoginProps) {
 
     if (response.ok) {
       localStorage.setItem('pc_2fa_setup', 'true');
+      localStorage.setItem('pc_2fa_setup_email', authEmail);
       setIs2faSetup(true);
       setError('');
       onLogin();
@@ -142,15 +146,6 @@ export default function AdminLogin({ onLogin }: AdminLoginProps) {
       setError(`${response.error || 'Invalid token. Please try again.'} If this continues, press Reset 2FA and scan the QR code again.`);
       setStatus('');
     }
-  };
-
-  const handleReset2fa = async () => {
-    // Force restarting 2FA setup and getting new QR code
-    localStorage.removeItem('pc_2fa_setup');
-    setIs2faSetup(false);
-    setToken('');
-    setStatus('Resetting 2FA and generating new QR code...');
-    await setupNewTotp();
   };
 
   return (
@@ -167,19 +162,26 @@ export default function AdminLogin({ onLogin }: AdminLoginProps) {
         </div>
 
         {step === 'password' && (
-          <form onSubmit={handlePasswordSubmit} className="space-y-4">
+          <form onSubmit={handlePasswordSubmit} className="space-y-4" autoComplete="off">
             {is2faChecking && (
               <p className="text-gray-400 text-xs text-center">Checking existing 2FA setup...</p>
             )}
+
+            <div className="sr-only">
+              <input type="text" name="username" autoComplete="username" value="" readOnly />
+              <input type="password" name="password" autoComplete="current-password" value="" readOnly />
+            </div>
 
             <div>
               <label className="block text-sm font-semibold text-gray-400 mb-2">Admin Email</label>
               <input
                 type="email"
+                name="admin-email"
+                autoComplete="off"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-600 focus:outline-none focus:border-orange-500 text-sm"
-                placeholder="Enter your admin email (not pre-filled or visible)"
+                placeholder="Enter your admin email"
               />
               <p className="text-xs text-gray-500 mt-2">This field is for login only and does not display the saved admin email.</p>
             </div>
@@ -188,6 +190,8 @@ export default function AdminLogin({ onLogin }: AdminLoginProps) {
               <label className="block text-sm font-semibold text-gray-400 mb-2">Admin Password</label>
               <input
                 type="password"
+                name="admin-password"
+                autoComplete="new-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-600 focus:outline-none focus:border-orange-500 text-sm"
@@ -266,13 +270,6 @@ export default function AdminLogin({ onLogin }: AdminLoginProps) {
                 Verify and Access
               </button>
             </form>
-            <button
-              type="button"
-              onClick={handleReset2fa}
-              className="w-full py-2 border border-red-500 text-red-500 font-semibold rounded-lg hover:bg-red-500 hover:text-white transition-colors"
-            >
-              Reset 2FA and Re-scan QR
-            </button>
           </div>
         )}
 

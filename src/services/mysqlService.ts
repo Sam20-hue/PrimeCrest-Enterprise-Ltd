@@ -180,6 +180,7 @@ export const mysqlService = {
   setup2fa: (email: string) => request<TotpSetupResponse>('POST', '/api/auth/setup-2fa', { email }),
   verify2fa: (email: string, token: string) => request<null>('POST', '/api/auth/verify-2fa', { email, token }),
   check2fa: (email: string) => request<TotpStatusResponse>('GET', `/api/auth/2fa-status?email=${encodeURIComponent(email)}`),
+  reset2fa: (email: string) => request<null>('POST', '/api/auth/reset-2fa', { email }),
 
   // -- File upload -----------------------------------------------------------
   uploadImage: async (file: File): Promise<ApiResponse<{ url: string }>> => {
