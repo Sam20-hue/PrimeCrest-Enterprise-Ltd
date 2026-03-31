@@ -40,18 +40,11 @@
  * app.listen(3001);
  */
 
+import type { Contact } from '../context/SiteDataContext';
+
 const getDefaultApiUrl = (): string => {
   if (typeof window === 'undefined') return 'http://localhost:3002';
-  const protocol = window.location.protocol || 'http:';
-  const hostname = window.location.hostname || 'localhost';
-
-  // Prefer the backend default locally; if the frontend is on 3000, use 3002.
-  if (hostname === 'localhost' || hostname === '127.0.0.1') {
-    return `${protocol}//${hostname}:3002`;
-  }
-
-  // On production, use the same origin so /api/* hits the PHP backend.
-  return `${protocol}//${hostname}`;
+  return '/api';
 };
 
 const normalizeBaseApiUrl = (url: string | undefined): string => {
@@ -100,18 +93,29 @@ interface ApiResponse<T> {
   ok: boolean;
 }
 
+interface TotpSetupResponse {
+  qrCode: string;
+  otpauthUrl?: string;
+  secret: string;
+}
+
+interface TotpStatusResponse {
+  setup?: boolean;
+  enabled?: boolean;
+}
+
 async function request<T>(
   method: string,
   path: string,
   body?: unknown
 ): Promise<ApiResponse<T>> {
-  const baseUrl = getApiUrl();
-  if (!baseUrl) {
-    return { data: null, error: 'MySQL API URL is not configured. Please set it in Admin ? Settings.', ok: false };
-  }
+  const baseUrl = getApiUrl() || '/api';
+  const requestUrl = baseUrl.endsWith('/api')
+    ? baseUrl.replace(/\/api$/, '') + path
+    : baseUrl + path;
   try {
-    console.debug('[mysqlService]', method, `${baseUrl}${path}`);
-    const res = await fetch(`${baseUrl}${path}`, {
+    console.debug('[mysqlService]', method, requestUrl);
+    const res = await fetch(requestUrl, {
       method,
       headers: { 'Content-Type': 'application/json' },
       body: body ? JSON.stringify(body) : undefined,
@@ -150,6 +154,9 @@ export const mysqlService = {
   updateBlogPost: (id: string, data: unknown) => request('PUT', `/api/blog/${id}`, data),
   deleteBlogPost: (id: string) => request('DELETE', `/api/blog/${id}`),
 
+  // -- Team --------------------------------------------------------------
+  getTeam: () => request('GET', '/api/team'),
+
   // -- Products --------------------------------------------------------------
   getProducts: () => request('GET', '/api/products'),
   createProduct: (data: unknown) => request('POST', '/api/products', data),
@@ -170,20 +177,20 @@ export const mysqlService = {
   ping: () => request('GET', '/api/health'),
 
   // -- Two-step auth (TOTP Authenticator) --------------------------------
-  setup2fa: (email: string) => request('POST', '/api/auth/setup-2fa', { email }),
-  verify2fa: (email: string, token: string) => request('POST', '/api/auth/verify-2fa', { email, token }),
-  check2fa: (email: string) => request('GET', `/api/auth/2fa-status?email=${encodeURIComponent(email)}`),
+  setup2fa: (email: string) => request<TotpSetupResponse>('POST', '/api/auth/setup-2fa', { email }),
+  verify2fa: (email: string, token: string) => request<null>('POST', '/api/auth/verify-2fa', { email, token }),
+  check2fa: (email: string) => request<TotpStatusResponse>('GET', `/api/auth/2fa-status?email=${encodeURIComponent(email)}`),
 
   // -- File upload -----------------------------------------------------------
   uploadImage: async (file: File): Promise<ApiResponse<{ url: string }>> => {
-    const baseUrl = getApiUrl();
-    if (!baseUrl) {
-      return { data: null, error: 'MySQL API URL is not configured. Please set it in Admin ? Settings.', ok: false };
-    }
+    const baseUrl = getApiUrl() || '/api';
+    const uploadUrl = baseUrl.endsWith('/api')
+      ? baseUrl.replace(/\/api$/, '') + '/api/upload'
+      : `${baseUrl}/api/upload`;
     try {
       const form = new FormData();
       form.append('file', file);
-      const res = await fetch(`${baseUrl}/api/upload`, {
+      const res = await fetch(uploadUrl, {
         method: 'POST',
         body: form,
       });
@@ -200,7 +207,7 @@ export const mysqlService = {
   },
 
   // -- Contacts ---------------------------------------------------------------
-  getContacts: () => request('GET', '/api/contacts'),
+  getContacts: () => request<Contact[]>('GET', '/api/contacts'),
   deleteContact: (id: string | number) => request('DELETE', `/api/contacts?id=${encodeURIComponent(String(id))}`),
 
   // -- Sync all shortcut -----------------------------------------------------

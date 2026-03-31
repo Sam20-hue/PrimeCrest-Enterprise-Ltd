@@ -197,7 +197,7 @@ export default function AdminSettings() {
               <input
                 type={field.type}
                 name={field.name}
-                value={(form as Record<string, string>)[field.name]}
+                value={form[field.name as keyof SiteSettings] as string}
                 onChange={handleChange}
                 disabled={field.disabled}
                 className={`w-full px-4 py-3 border rounded-lg text-sm focus:outline-none focus:border-orange-400 ${field.disabled ? 'bg-gray-100 border-gray-200 cursor-not-allowed text-gray-500' : 'border-gray-200'}`}

@@ -16,6 +16,8 @@ export default function AdminLogin({ onLogin }: AdminLoginProps) {
   const [error, setError] = useState('');
   const [qrCode, setQrCode] = useState('');
   const [secret, setSecret] = useState('');
+  const [otpauthUrl, setOtpauthUrl] = useState('');
+  const [qrLoadFailed, setQrLoadFailed] = useState(false);
   const [is2faSetup, setIs2faSetup] = useState(false);
   const [is2faChecking, setIs2faChecking] = useState(true);
 
@@ -23,13 +25,13 @@ export default function AdminLogin({ onLogin }: AdminLoginProps) {
     const checkSavedState = async () => {
       setIs2faChecking(true);
       const email = settings.adminEmail || 'samsonakula3@gmail.com';
-      const status = await mysqlService.check2fa(email);
+      const statusRes = await mysqlService.check2fa(email);
       const savedLocal = localStorage.getItem('pc_2fa_setup') === 'true';
       
-      if (status.ok && (status.data?.setup || status.data?.enabled)) {
+      if (statusRes.ok && (statusRes.data?.setup || statusRes.data?.enabled)) {
         setIs2faSetup(true);
         localStorage.setItem('pc_2fa_setup', 'true');
-      } else if (!status.ok && savedLocal) {
+      } else if (!statusRes.ok && savedLocal) {
         // fallback when backend temporarily unreachable
         setIs2faSetup(true);
         setError('2FA server unavailable, using local setup state fallback.');
@@ -87,7 +89,9 @@ export default function AdminLogin({ onLogin }: AdminLoginProps) {
 
     if (response.ok && response.data) {
       setQrCode(response.data.qrCode);
+      setOtpauthUrl(response.data.otpauthUrl || '');
       setSecret(response.data.secret);
+      setQrLoadFailed(false);
       setStep('setup');
       setStatus('');
     } else {
@@ -205,7 +209,17 @@ export default function AdminLogin({ onLogin }: AdminLoginProps) {
                 Scan this QR code with <strong>Google Authenticator</strong>, <strong>Authy</strong>, or <strong>Microsoft Authenticator</strong>:
               </p>
               {qrCode && (
-                <img src={qrCode} alt="QR Code" className="w-48 h-48 mx-auto border-2 border-gray-700 rounded-lg p-2 bg-white" />
+                <img
+                  src={qrLoadFailed && otpauthUrl ? `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(otpauthUrl)}` : qrCode}
+                  alt="QR Code"
+                  className="w-48 h-48 mx-auto border-2 border-gray-700 rounded-lg p-2 bg-white"
+                  onError={() => setQrLoadFailed(true)}
+                />
+              )}
+              {qrLoadFailed && (
+                <p className="text-xs text-orange-300 mt-2">
+                  QR image failed to load. You can still use the manual key below.
+                </p>
               )}
               <p className="text-xs text-gray-600 mt-3">Manual Key: {secret}</p>
             </div>

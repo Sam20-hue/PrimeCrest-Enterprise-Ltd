@@ -65,7 +65,7 @@ export default function AdminGallery() {
         imageUrl,
         description: '',
       };
-      setGallery((prev) => [newItem, ...prev]);
+      setGallery([newItem, ...gallery]);
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     }

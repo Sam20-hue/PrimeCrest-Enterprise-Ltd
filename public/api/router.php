@@ -266,10 +266,12 @@ if ($resource === 'auth') {
             'enabled' => false,
         ];
         saveAuthData($auth);
+        $otpauthUrl = "otpauth://totp/" . rawurlencode('Primecrest Enterprise:' . $email) . "?secret={$secret}&issuer=" . rawurlencode('Primecrest Enterprise') . "&algorithm=SHA1&digits=6&period=30";
         respond(200, [
             'success' => true,
             'secret' => $secret,
             'qrCode' => buildQrCodeUrl($email, $secret),
+            'otpauthUrl' => $otpauthUrl,
         ]);
     }
     if ($action === 'verify-2fa' && $method === 'POST') {

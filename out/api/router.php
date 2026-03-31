@@ -136,7 +136,7 @@ function hotp(string $secret, int $counter, int $digits = 6): string {
 function verifyTotp(string $secret, string $token): bool {
     $timestamp = time();
     $interval = 30;
-    for ($i = -1; $i <= 1; $i++) {
+    for ($i = -2; $i <= 2; $i++) {
         $counter = floor($timestamp / $interval) + $i;
         if (hotp($secret, $counter) === $token) {
             return true;
@@ -154,10 +154,30 @@ function saveAuthData(array $data) {
     saveJson('auth.json', $data);
 }
 
+function getAuthEntry(array &$auth, string $email): array {
+    if (is_array($auth[$email] ?? null)) {
+        return $auth[$email];
+    }
+
+    if (!empty($auth['secret'])) {
+        $legacyEntry = [
+            'secret' => $auth['secret'],
+            'enabled' => !empty($auth['enabled']),
+        ];
+        if ($email !== '') {
+            $auth[$email] = $legacyEntry;
+            saveAuthData($auth);
+        }
+        return $legacyEntry;
+    }
+
+    return [];
+}
+
 function buildQrCodeUrl(string $email, string $secret): string {
     $label = rawurlencode('Primecrest Enterprise:' . $email);
     $issuer = rawurlencode('Primecrest Enterprise');
-    $otpauth = "otpauth://totp/{$label}?secret={$secret}&issuer={$issuer}";
+    $otpauth = "otpauth://totp/{$label}?secret={$secret}&issuer={$issuer}&algorithm=SHA1&digits=6&period=30";
     return 'https://chart.googleapis.com/chart?chs=200x200&cht=qr&chl=' . rawurlencode($otpauth);
 }
 
@@ -222,10 +242,15 @@ if ($resource === 'settings') {
 if ($resource === 'auth') {
     $action = $parts[1] ?? '';
     if ($action === '2fa-status' && $method === 'GET') {
+        $email = trim($_GET['email'] ?? '');
+        if ($email === '') {
+            respond(400, ['error' => 'Email query parameter is required.']);
+        }
         $auth = getAuthData();
+        $userAuth = getAuthEntry($auth, $email);
         respond(200, [
-            'setup' => !empty($auth['secret']),
-            'enabled' => !empty($auth['enabled']),
+            'setup' => !empty($userAuth['secret']),
+            'enabled' => !empty($userAuth['enabled']),
         ]);
     }
     if ($action === 'setup-2fa' && $method === 'POST') {
@@ -236,30 +261,36 @@ if ($resource === 'auth') {
         }
         $secret = base32Encode(random_bytes(10));
         $auth = getAuthData();
-        $auth['secret'] = $secret;
-        $auth['enabled'] = false;
+        $auth[$email] = [
+            'secret' => $secret,
+            'enabled' => false,
+        ];
         saveAuthData($auth);
+        $otpauthUrl = "otpauth://totp/" . rawurlencode('Primecrest Enterprise:' . $email) . "?secret={$secret}&issuer=" . rawurlencode('Primecrest Enterprise') . "&algorithm=SHA1&digits=6&period=30";
         respond(200, [
             'success' => true,
             'secret' => $secret,
             'qrCode' => buildQrCodeUrl($email, $secret),
+            'otpauthUrl' => $otpauthUrl,
         ]);
     }
     if ($action === 'verify-2fa' && $method === 'POST') {
         $body = getRequestBody() ?: [];
+        $email = trim($body['email'] ?? '');
         $token = trim($body['token'] ?? '');
-        if ($token === '') {
-            respond(400, ['error' => 'Token is required.']);
+        if ($email === '' || $token === '') {
+            respond(400, ['error' => 'Email and token are required.']);
         }
         $auth = getAuthData();
-        $secret = $auth['secret'] ?? '';
+        $userAuth = getAuthEntry($auth, $email);
+        $secret = $userAuth['secret'] ?? '';
         if (!$secret) {
-            respond(400, ['error' => '2FA is not set up yet.']);
+            respond(400, ['error' => '2FA is not set up yet for this email.']);
         }
         if (!verifyTotp($secret, $token)) {
             respond(401, ['error' => 'Invalid or expired token.']);
         }
-        $auth['enabled'] = true;
+        $auth[$email]['enabled'] = true;
         saveAuthData($auth);
         respond(200, ['success' => true, 'message' => '2FA token verified!']);
     }

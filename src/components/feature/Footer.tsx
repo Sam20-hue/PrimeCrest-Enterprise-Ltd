@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useSiteData } from '../../context/SiteDataContext';
+import { SocialMedia, useSiteData } from '../../context/SiteDataContext';
 import { translations } from '../../i18n/translations';
 
 export default function Footer() {
@@ -48,7 +48,7 @@ export default function Footer() {
     { label: 'Contact', path: '/contact' },
   ];
 
-  const sm = settings.socialMedia || {};
+  const sm: Partial<SocialMedia> = settings.socialMedia;
   const socialLinks = [
     { icon: 'ri-facebook-fill', url: sm.facebook, label: 'Facebook' },
     { icon: 'ri-instagram-line', url: sm.instagram, label: 'Instagram' },

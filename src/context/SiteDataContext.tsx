@@ -352,6 +352,7 @@ export function SiteDataProvider({ children }: { children: ReactNode }) {
         team,
         contacts,
         updateSettings,
+        addSubscriber,
         setServices,
         setGallery,
         setBlogPosts,
