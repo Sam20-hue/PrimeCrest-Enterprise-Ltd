@@ -39,11 +39,13 @@ export default function GalleryPreview() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           {filtered.map((item) => (
-            <div key={item.id} className="group relative overflow-hidden rounded-xl aspect-video cursor-pointer">
+            <div key={item.id} className="group relative overflow-hidden rounded-[28px] aspect-video cursor-pointer bg-gray-950 shadow-[0_18px_45px_-25px_rgba(0,0,0,0.9)] border border-white/10">
               <img
                 src={item.imageUrl}
                 alt={item.title}
-                className="w-full h-full object-cover object-top group-hover:scale-110 transition-transform duration-500"
+                loading="lazy"
+                decoding="async"
+                className="w-full h-full object-cover object-center transition-transform duration-500 group-hover:scale-105"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-5">
                 <span className="text-orange-400 text-xs font-semibold uppercase tracking-wider mb-1">

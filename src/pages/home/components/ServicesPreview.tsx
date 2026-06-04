@@ -23,11 +23,11 @@ export default function ServicesPreview() {
               className="group bg-gray-50 rounded-xl overflow-hidden hover:bg-white transition-all duration-300 border border-transparent hover:border-orange-100 hover:-translate-y-1"
               style={{ animationDelay: `${idx * 100}ms` }}
             >
-              <div className="h-44 overflow-hidden">
+              <div className="h-44 overflow-hidden bg-gray-100 flex items-center justify-center">
                 <img
                   src={service.image}
                   alt={service.title}
-                  className="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-500"
+                  className="max-h-full max-w-full object-contain transition-transform duration-500 group-hover:scale-105"
                 />
               </div>
               <div className="p-6">

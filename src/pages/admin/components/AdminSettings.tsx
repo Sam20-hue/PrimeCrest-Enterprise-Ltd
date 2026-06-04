@@ -22,6 +22,11 @@ export default function AdminSettings() {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
 
+  const handleNumericChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value === '' ? 0 : Number(e.target.value);
+    setForm({ ...form, [e.target.name]: value });
+  };
+
   const handleSocialChange = (key: keyof SocialMedia, value: string) => {
     setForm({ ...form, socialMedia: { ...form.socialMedia, [key]: value } });
   };
@@ -175,8 +180,9 @@ export default function AdminSettings() {
               <div className="w-44 h-20 flex items-center justify-center bg-white rounded-xl overflow-hidden border-2 border-gray-200">
                 <img
                   src={logoPreview || form.logoUrl}
-                  alt="Logo Preview"
-                  className="max-h-full max-w-full object-contain"
+                  alt={form.logoAltText || 'Logo Preview'}
+                  className="max-h-full max-w-full"
+                  style={{ objectFit: form.logoDisplayMode }}
                   onError={(e) => {
                     (e.target as HTMLImageElement).src =
                       'https://static.readdy.ai/image/2645941fdc0e183360970fc234d34970/773766d2f6ed38db8ecc7ecb533b68b7.jpeg';
@@ -190,8 +196,9 @@ export default function AdminSettings() {
                 <div className="w-12 h-8 flex items-center justify-center bg-white rounded border border-gray-200">
                   <img
                     src={logoPreview || form.logoUrl}
-                    alt="Mini Preview"
-                    className="max-h-full max-w-full object-contain"
+                    alt={form.logoAltText || 'Mini Logo Preview'}
+                    className="max-h-full max-w-full"
+                    style={{ objectFit: form.logoDisplayMode }}
                   />
                 </div>
                 <div className="text-xs text-gray-500">Navbar</div>
@@ -243,7 +250,63 @@ export default function AdminSettings() {
                 <p><strong>Sizes:</strong> Main logo 300×100px, Navbar 120×40px</p>
                 <p><strong>Tip:</strong> Transparent backgrounds work best</p>
               </div>
-              
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Logo Width (px)</label>
+                  <input
+                    type="number"
+                    name="logoWidth"
+                    value={form.logoWidth}
+                    min={40}
+                    onChange={handleNumericChange}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-orange-400"
+                    placeholder="240"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Logo Height (px)</label>
+                  <input
+                    type="number"
+                    name="logoHeight"
+                    value={form.logoHeight}
+                    min={20}
+                    onChange={handleNumericChange}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-orange-400"
+                    placeholder="96"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Logo Alt Text</label>
+                <input
+                  type="text"
+                  name="logoAltText"
+                  value={form.logoAltText}
+                  onChange={handleChange}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-orange-400"
+                  placeholder="PRIMECREST ENTERPRISE LTD logo"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Logo Display Mode</label>
+                <select
+                  name="logoDisplayMode"
+                  value={form.logoDisplayMode}
+                  onChange={handleChange}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-orange-400"
+                >
+                  <option value="contain">Contain</option>
+                  <option value="cover">Cover</option>
+                </select>
+              </div>
+
+              <div className="text-xs text-gray-400">
+                <p><strong>Preview:</strong> The header logo will use the width, height, and display mode you choose here.</p>
+              </div>
+
               {/* OR paste URL */}
               <div className="border-t border-orange-200 pt-4">
                 <label className="block text-xs font-semibold text-gray-500 mb-2">Or paste image URL</label>

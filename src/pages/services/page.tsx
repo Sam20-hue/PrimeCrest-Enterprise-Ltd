@@ -143,11 +143,11 @@ export default function ServicesPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
           {services.map((service) => (
             <div key={service.id} className="bg-white rounded-xl overflow-hidden border border-gray-100 hover:border-orange-200 transition-all group">
-              <div className="h-56 overflow-hidden relative">
+              <div className="h-56 overflow-hidden relative bg-gray-100 flex items-center justify-center">
                 <img
                   src={service.image}
                   alt={service.title}
-                  className="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-500"
+                  className="max-h-full max-w-full object-contain transition-transform duration-500 group-hover:scale-105"
                 />
                 <div className="absolute top-4 left-4">
                   <div className="w-12 h-12 flex items-center justify-center bg-orange-600 rounded-xl text-white text-2xl">

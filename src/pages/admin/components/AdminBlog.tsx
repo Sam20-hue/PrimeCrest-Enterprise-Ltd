@@ -207,12 +207,12 @@ export default function AdminBlog() {
                 <textarea
                   value={editing.content}
                   onChange={(e) => setEditing({ ...editing, content: e.target.value })}
-                  rows={10}
-                  maxLength={500}
+                  rows={14}
+                  maxLength={2000}
                   className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-orange-400 resize-none"
-                  placeholder="Full blog post content..."
+                  placeholder="Full blog post content... Write as much detail as needed for the article."
                 />
-                <p className="text-xs text-gray-400 mt-1">{editing.content.length}/500</p>
+                <p className="text-xs text-gray-400 mt-1">{editing.content.length}/2000</p>
               </div>
               <div className="flex gap-3 pt-2">
                 <button

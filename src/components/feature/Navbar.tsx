@@ -24,6 +24,8 @@ export default function Navbar({ onLanguageClick }: NavbarProps) {
 
   // On sub-pages always use white bg; on home page transparent until scrolled
   const showWhiteBg = !isHomePage || scrolled;
+  const logoWidth = settings.logoWidth > 0 ? settings.logoWidth : 240;
+  const logoHeight = settings.logoHeight > 0 ? settings.logoHeight : 96;
 
   const isActive = (path: string) => location.pathname === path;
 
@@ -48,7 +50,9 @@ export default function Navbar({ onLanguageClick }: NavbarProps) {
           <img
             src={settings.logoUrl}
             alt={settings.companyName}
-            className="h-24 w-auto max-w-[320px] object-contain"
+            width={240}
+            height={96}
+            className="h-28 md:h-32 w-auto max-w-[320px] object-contain"
             style={{ background: 'none', border: 'none', boxShadow: 'none', borderRadius: 0 }}
             onError={(e) => {
               (e.target as HTMLImageElement).src =

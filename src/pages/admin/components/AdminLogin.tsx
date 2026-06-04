@@ -155,6 +155,8 @@ export default function AdminLogin({ onLogin }: AdminLoginProps) {
           <img
             src={settings.logoUrl}
             alt="Logo"
+            width={180}
+            height={72}
             className="h-16 w-auto object-contain mx-auto mb-4"
           />
           <h1 className="text-xl font-black text-white">Admin Panel</h1>
@@ -183,7 +185,6 @@ export default function AdminLogin({ onLogin }: AdminLoginProps) {
                 className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-600 focus:outline-none focus:border-orange-500 text-sm"
                 placeholder="Enter your admin email"
               />
-              <p className="text-xs text-gray-500 mt-2">This field is for login only and does not display the saved admin email.</p>
             </div>
 
             <div>

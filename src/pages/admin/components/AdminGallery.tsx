@@ -272,8 +272,8 @@ export default function AdminGallery() {
       {/* Gallery Grid */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
         {gallery.map((item) => (
-          <div key={item.id} className="group relative rounded-xl overflow-hidden aspect-video bg-gray-100">
-            <img src={item.imageUrl} alt={item.title} className="w-full h-full object-cover" />
+          <div key={item.id} className="group relative rounded-3xl overflow-hidden aspect-video bg-gray-100 shadow-lg shadow-black/10 border border-white/10">
+            <img src={item.imageUrl} alt={item.title} loading="lazy" decoding="async" className="w-full h-full object-cover object-center" />
             <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2 p-3">
               <p className="text-white text-xs font-bold text-center line-clamp-2">{item.title}</p>
               <p className="text-orange-300 text-xs">{item.category}</p>

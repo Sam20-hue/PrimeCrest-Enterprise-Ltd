@@ -54,22 +54,24 @@ export default function GalleryPage() {
           {filtered.map((item) => (
             <div
               key={item.id}
-              className="group relative overflow-hidden rounded-xl aspect-video cursor-pointer"
+              className="group relative overflow-hidden rounded-[28px] aspect-video cursor-pointer bg-gray-950 shadow-[0_18px_45px_-25px_rgba(0,0,0,0.9)] border border-white/10"
               onClick={() => setSelectedItem(item)}
             >
               <img
                 src={item.imageUrl}
                 alt={item.title}
-                className="w-full h-full object-cover object-top group-hover:scale-110 transition-transform duration-500"
+                loading="lazy"
+                decoding="async"
+                className="w-full h-full object-cover object-center transition-transform duration-500 group-hover:scale-105"
               />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-5">
+              <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-5">
                 <span className="text-orange-400 text-xs font-semibold uppercase tracking-wider mb-1">
                   {item.category}
                 </span>
-                <h3 className="text-white font-bold text-sm">{item.title}</h3>
+                <h3 className="text-white font-bold text-base">{item.title}</h3>
                 <p className="text-gray-300 text-xs mt-1 line-clamp-2">{item.description}</p>
               </div>
-              <div className="absolute top-3 right-3 w-8 h-8 flex items-center justify-center bg-white/20 backdrop-blur-sm rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
+              <div className="absolute top-3 right-3 w-9 h-9 flex items-center justify-center bg-white/15 backdrop-blur-sm rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
                 <i className="ri-zoom-in-line text-white text-sm" />
               </div>
             </div>

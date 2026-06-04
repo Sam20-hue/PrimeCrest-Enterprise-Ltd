@@ -143,6 +143,7 @@ export default function Footer() {
             {subscribed ? (
               <div>
                 <p className="text-sm text-orange-400 font-medium">Thanks for subscribing!</p>
+                <p className="text-xs text-gray-300 mt-2">You will receive updates when new blog posts are published.</p>
                 {feedback && <p className="text-xs text-gray-300 mt-2">{feedback}</p>}
               </div>
             ) : (
