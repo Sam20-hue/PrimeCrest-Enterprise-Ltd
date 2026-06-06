@@ -21,9 +21,12 @@ export default function AdminServices() {
   const [saved, setSaved] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const galleryFileInputRef = useRef<HTMLInputElement>(null);
   const dropZoneRef = useRef<HTMLDivElement>(null);
 
   const handleEdit = (s: Service) => { setEditing({ ...s }); setShowForm(true); };
+  const serviceTitleOptions = services.map((service) => service.title).filter(Boolean);
+
   const handleNew = () => { setEditing(emptyService()); setShowForm(true); };
 
   const handleSave = () => {
@@ -81,6 +84,33 @@ export default function AdminServices() {
     setEditing({ ...editing, image: imageUrl });
   }, [editing]);
 
+  const processGalleryFiles = useCallback(async (files: FileList | null) => {
+    if (!files || files.length === 0 || !editing) return;
+
+    const urls = await Promise.all(
+      Array.from(files)
+        .filter((file) => file.type.startsWith('image/'))
+        .map(async (file) => {
+          const uploadResult = await mysqlService.uploadImage(file);
+          if (uploadResult.ok && uploadResult.data?.url) {
+            return uploadResult.data.url;
+          }
+          const reader = new FileReader();
+          return new Promise<string>((resolve) => {
+            reader.onload = (e) => resolve(e.target?.result as string);
+            reader.readAsDataURL(file);
+          });
+        })
+    );
+
+    setEditing({ ...editing, images: [...(editing.images || []), ...urls.filter(Boolean)] });
+  }, [editing]);
+
+  const removeGalleryImage = (index: number) => {
+    if (!editing) return;
+    setEditing({ ...editing, images: editing.images?.filter((_, i) => i !== index) || [] });
+  };
+
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(true);
@@ -100,6 +130,11 @@ export default function AdminServices() {
 
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     processFiles(e.target.files);
+    e.target.value = '';
+  };
+
+  const handleGalleryFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    processGalleryFiles(e.target.files);
     e.target.value = '';
   };
 
@@ -134,6 +169,30 @@ export default function AdminServices() {
               </button>
             </div>
             <div className="space-y-4">
+              {serviceTitleOptions.length > 0 && (
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Choose or type a service title</label>
+                  <div className="flex gap-3 flex-col sm:flex-row">
+                    <select
+                      value={editing.title}
+                      onChange={(e) => setEditing({ ...editing, title: e.target.value })}
+                      className="w-full sm:w-1/2 px-4 py-3 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-orange-400"
+                    >
+                      <option value="">Select existing title</option>
+                      {serviceTitleOptions.map((title) => (
+                        <option key={title} value={title}>{title}</option>
+                      ))}
+                    </select>
+                    <input
+                      type="text"
+                      value={editing.title}
+                      onChange={(e) => setEditing({ ...editing, title: e.target.value })}
+                      className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-orange-400"
+                      placeholder="Or enter a new service title"
+                    />
+                  </div>
+                </div>
+              )}
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">Service Title *</label>
                 <input
@@ -203,7 +262,25 @@ export default function AdminServices() {
                 )}
               </div>
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Additional Gallery Image URLs</label>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Additional Gallery Images</label>
+                <div className="flex items-center gap-3 flex-wrap mb-3">
+                  <button
+                    type="button"
+                    onClick={() => galleryFileInputRef.current?.click()}
+                    className="inline-flex items-center gap-2 px-4 py-2.5 bg-orange-600 text-white text-sm font-semibold rounded-lg hover:bg-orange-700 transition-colors"
+                  >
+                    <i className="ri-upload-2-line" /> Upload Images
+                  </button>
+                  <span className="text-xs text-gray-500">You can upload multiple images for the detail page gallery.</span>
+                </div>
+                <input
+                  ref={galleryFileInputRef}
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  className="hidden"
+                  onChange={handleGalleryFileInput}
+                />
                 <textarea
                   value={(editing.images || []).join('\n')}
                   onChange={(e) => setEditing({ ...editing, images: e.target.value.split('\n').filter(Boolean) })}
@@ -211,7 +288,23 @@ export default function AdminServices() {
                   className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-orange-400 resize-none"
                   placeholder="Enter one image URL per line"
                 />
-                <p className="text-xs text-gray-400 mt-2">These images appear in the service detail gallery.</p>
+                <p className="text-xs text-gray-400 mt-2">These images appear in the service detail gallery. You can also upload new images above.</p>
+                {editing.images && editing.images.length > 0 && (
+                  <div className="mt-4 grid grid-cols-2 gap-3">
+                    {editing.images.map((imageUrl, index) => (
+                      <div key={index} className="relative overflow-hidden rounded-2xl border border-gray-200 bg-gray-50">
+                        <img src={imageUrl} alt={`Gallery ${index + 1}`} className="h-28 w-full object-cover" />
+                        <button
+                          type="button"
+                          onClick={() => removeGalleryImage(index)}
+                          className="absolute right-2 top-2 rounded-full bg-white/90 p-1.5 text-sm text-red-600 hover:bg-red-50"
+                        >
+                          <i className="ri-close-line" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">Icon Class</label>

@@ -23,6 +23,9 @@ export interface SiteSettings {
   logoHeight: number;
   logoAltText: string;
   logoDisplayMode: 'contain' | 'cover';
+  logoContrast: number;
+  logoSharpness?: number;
+  logoBorderRadius: number;
   companyName: string;
   tagline: string;
   phone: string;
@@ -125,6 +128,9 @@ const defaultSettings: SiteSettings = {
   logoHeight: 96,
   logoAltText: 'PRIMECREST ENTERPRISE LTD logo',
   logoDisplayMode: 'contain',
+  logoContrast: 1.05,
+  logoSharpness: 0,
+  logoBorderRadius: 10,
   companyName: 'PRIMECREST ENTERPRISE LTD',
   tagline: 'Your Trusted Security & Technology Partner',
   email: 'info@primecrestenterprise.com',

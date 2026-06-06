@@ -16,6 +16,7 @@ export default function AdminSettings() {
   const [checkingTwoFa, setCheckingTwoFa] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [logoPreview, setLogoPreview] = useState<string>(form.logoUrl);
+  const [processingLogo, setProcessingLogo] = useState(false);
   const isDirty = JSON.stringify(form) !== JSON.stringify(settings) || newPassword.length > 0 || confirmPassword.length > 0;
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -34,22 +35,95 @@ export default function AdminSettings() {
   const handleLogoFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    // Read file as Data URL for immediate preview and optional processing
+    setProcessingLogo(true);
+    const dataUrl = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (ev) => resolve(ev.target?.result as string);
+      reader.onerror = (err) => reject(err);
+      reader.readAsDataURL(file);
+    });
 
-    const apiResult = await mysqlService.uploadImage(file);
-    if (apiResult.ok && apiResult.data?.url) {
-      setLogoPreview(apiResult.data.url);
-      setForm((prev) => ({ ...prev, logoUrl: apiResult.data?.url }));
-      return;
+    // Apply client-side sharpening/contrast preview before upload
+    const processed = await applyImageProcessing(dataUrl, form.logoSharpness || 0, form.logoContrast || 1);
+
+    // Try uploading processed image to backend; fallback to using processed data URL
+    try {
+      const blob = await (await fetch(processed)).blob();
+      const processedFile = new File([blob], file.name, { type: blob.type });
+      const apiResult = await mysqlService.uploadImage(processedFile);
+      if (apiResult.ok && apiResult.data?.url) {
+        setLogoPreview(apiResult.data.url);
+        setForm((prev) => ({ ...prev, logoUrl: apiResult.data?.url }));
+      } else {
+        setLogoPreview(processed);
+        setForm((prev) => ({ ...prev, logoUrl: processed }));
+      }
+    } catch {
+      setLogoPreview(processed);
+      setForm((prev) => ({ ...prev, logoUrl: processed }));
+    } finally {
+      setProcessingLogo(false);
     }
+  };
 
-    // Fallback to data URL for local preview if backend upload not configured
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      const dataUrl = ev.target?.result as string;
-      setLogoPreview(dataUrl);
-      setForm((prev) => ({ ...prev, logoUrl: dataUrl }));
-    };
-    reader.readAsDataURL(file);
+  // Apply sharpening + contrast using an offscreen canvas. Returns a data URL.
+  const applyImageProcessing = async (dataUrl: string, sharpness: number, contrast: number) => {
+    return await new Promise<string>((resolve) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        const maxDim = 1200;
+        const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+        const w = Math.round(img.width * scale);
+        const h = Math.round(img.height * scale);
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d')!;
+
+        // Apply contrast via canvas filter if available
+        try {
+          ctx.filter = `contrast(${contrast})`;
+        } catch {
+          // ignore if filter not supported
+        }
+        ctx.drawImage(img, 0, 0, w, h);
+
+        if (sharpness > 0) {
+          // Basic unsharp mask-like convolution using a sharpening kernel scaled by strength
+          try {
+            const imageData = ctx.getImageData(0, 0, w, h);
+            const data = imageData.data;
+            const copy = new Uint8ClampedArray(data);
+            // Kernel: center (1 + 4*s) and -s for neighbors (simple approximation)
+            const s = Math.min(2, Math.max(0, sharpness / 2));
+            const center = 1 + 4 * s;
+            for (let y = 1; y < h - 1; y++) {
+              for (let x = 1; x < w - 1; x++) {
+                for (let c = 0; c < 3; c++) {
+                  const i = (y * w + x) * 4 + c;
+                  const up = ((y - 1) * w + x) * 4 + c;
+                  const down = ((y + 1) * w + x) * 4 + c;
+                  const left = (y * w + (x - 1)) * 4 + c;
+                  const right = (y * w + (x + 1)) * 4 + c;
+                  const val = center * copy[i] - s * (copy[up] + copy[down] + copy[left] + copy[right]);
+                  data[i] = Math.min(255, Math.max(0, val));
+                }
+                // alpha remains the same
+              }
+            }
+            ctx.putImageData(imageData, 0, 0);
+          } catch {
+            // convolution failed or not allowed (tainted canvas) — ignore
+          }
+        }
+
+        resolve(canvas.toDataURL('image/jpeg', 0.9));
+      };
+      img.onerror = () => resolve(dataUrl);
+      img.src = dataUrl;
+    });
   };
 
   const isPasswordStrong = (password: string) => {
@@ -177,31 +251,43 @@ export default function AdminSettings() {
           <div className="flex items-start gap-6">
             {/* Preview with multiple sizes */}
             <div className="flex-shrink-0 space-y-3">
-              <div className="w-44 h-20 flex items-center justify-center bg-white rounded-xl overflow-hidden border-2 border-gray-200">
+              <div className="w-44 h-20 flex items-center justify-center bg-white rounded-xl overflow-hidden border-2 border-gray-200" style={{ borderRadius: `${form.logoBorderRadius}px` }}>
                 <img
                   src={logoPreview || form.logoUrl}
                   alt={form.logoAltText || 'Logo Preview'}
                   className="max-h-full max-w-full"
-                  style={{ objectFit: form.logoDisplayMode }}
+                  style={{
+                    objectFit: form.logoDisplayMode,
+                    filter: `contrast(${form.logoContrast})`,
+                    width: `${form.logoWidth}px`,
+                    height: `${form.logoHeight}px`,
+                    borderRadius: `${form.logoBorderRadius}px`,
+                  }}
                   onError={(e) => {
                     (e.target as HTMLImageElement).src =
                       'https://static.readdy.ai/image/2645941fdc0e183360970fc234d34970/773766d2f6ed38db8ecc7ecb533b68b7.jpeg';
                   }}
                 />
               </div>
-              <div className="text-xs text-gray-500 text-center">Main Size (300×100)</div>
+              <div className="text-xs text-gray-500 text-center">Main preview size</div>
               
               {/* Mini preview */}
               <div className="flex justify-center gap-2">
-                <div className="w-12 h-8 flex items-center justify-center bg-white rounded border border-gray-200">
+                <div className="w-12 h-8 flex items-center justify-center bg-white rounded border border-gray-200" style={{ borderRadius: `${form.logoBorderRadius}px` }}>
                   <img
                     src={logoPreview || form.logoUrl}
                     alt={form.logoAltText || 'Mini Logo Preview'}
                     className="max-h-full max-w-full"
-                    style={{ objectFit: form.logoDisplayMode }}
+                    style={{
+                      objectFit: form.logoDisplayMode,
+                      filter: `contrast(${form.logoContrast})`,
+                      width: `${Math.min(form.logoWidth, 120)}px`,
+                      height: `${Math.min(form.logoHeight, 40)}px`,
+                      borderRadius: `${form.logoBorderRadius}px`,
+                    }}
                   />
                 </div>
-                <div className="text-xs text-gray-500">Navbar</div>
+                <div className="text-xs text-gray-500">Navbar sample</div>
               </div>
             </div>
             
@@ -274,6 +360,50 @@ export default function AdminSettings() {
                     onChange={handleNumericChange}
                     className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-orange-400"
                     placeholder="96"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Logo Contrast</label>
+                  <input
+                    type="range"
+                    name="logoContrast"
+                    min={0.5}
+                    max={2}
+                    step={0.05}
+                    value={form.logoContrast}
+                    onChange={(e) => setForm({ ...form, logoContrast: Number(e.target.value) })}
+                    className="w-full"
+                  />
+                  <div className="text-xs text-gray-500 mt-1">{form.logoContrast.toFixed(2)}× contrast</div>
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Logo Sharpness</label>
+                  <input
+                    type="range"
+                    name="logoSharpness"
+                    min={0}
+                    max={5}
+                    step={0.25}
+                    value={form.logoSharpness || 0}
+                    onChange={(e) => setForm({ ...form, logoSharpness: Number(e.target.value) })}
+                    className="w-full"
+                  />
+                  <div className="text-xs text-gray-500 mt-1">{(form.logoSharpness || 0).toFixed(2)} sharpen</div>
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Logo Border Radius</label>
+                  <input
+                    type="number"
+                    name="logoBorderRadius"
+                    value={form.logoBorderRadius}
+                    min={0}
+                    max={50}
+                    onChange={handleNumericChange}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-orange-400"
+                    placeholder="10"
                   />
                 </div>
               </div>

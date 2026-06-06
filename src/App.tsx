@@ -10,12 +10,13 @@ function Layout() {
   const location = useLocation();
   const [langOpen, setLangOpen] = useState(false);
   const isAdmin = location.pathname === '/admin';
+  const isServiceDetail = /^\/services\/[^/]+$/.test(location.pathname);
 
   return (
     <>
-      {!isAdmin && <Navbar onLanguageClick={() => setLangOpen(true)} />}
+      {!isAdmin && !isServiceDetail && <Navbar onLanguageClick={() => setLangOpen(true)} />}
       <AppRoutes />
-      {!isAdmin && <Footer />}
+      {!isAdmin && !isServiceDetail && <Footer />}
       <LanguageModal isOpen={langOpen} onClose={() => setLangOpen(false)} />
     </>
   );

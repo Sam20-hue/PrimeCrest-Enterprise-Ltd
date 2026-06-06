@@ -1,14 +1,21 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useSiteData } from '../../context/SiteDataContext';
 import { translations } from '../../i18n/translations';
 import { getContactApiEndpoints } from '../../utils/contactApi';
+
+const buildServiceDetailUrl = (serviceId: string) => {
+  const base = typeof window !== 'undefined' ? window.location.origin : '';
+  const basePath = typeof window !== 'undefined' ? import.meta.env.BASE_URL || '/' : '/';
+  return `${base}${basePath.replace(/\/$/, '')}/services/${serviceId}`;
+};
 
 export default function ServicesPage() {
   const { services, settings, language } = useSiteData();
   const t = translations[language].services;
   const [selected, setSelected] = useState<string | null>(null);
   const [modalService, setModalService] = useState<any>(null);
+  const [filterTitle, setFilterTitle] = useState('');
   const [form, setForm] = useState({ name: '', email: '', phone: '', message: '' });
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -110,6 +117,14 @@ export default function ServicesPage() {
     handleFallbackEmail();
   };
 
+  const openServiceDetail = useCallback((serviceId: string) => {
+    const url = buildServiceDetailUrl(serviceId);
+    const detailWindow = window.open(url, '_blank');
+    if (detailWindow) {
+      detailWindow.focus();
+    }
+  }, []);
+
   const openModal = (service: any) => {
     setModalService(service);
     setForm({ name: '', email: '', phone: '', message: '' });
@@ -141,8 +156,26 @@ export default function ServicesPage() {
 
       {/* Services Grid */}
       <section className="py-20 max-w-7xl mx-auto px-6">
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-3">
+            <label className="text-sm text-gray-600">Filter:</label>
+            <select
+              value={filterTitle}
+              onChange={(e) => setFilterTitle(e.target.value)}
+              className="px-3 py-2 border border-gray-200 rounded-lg text-sm"
+            >
+              <option value="">All services</option>
+              {services.map((s) => (
+                <option key={s.id} value={s.title}>{s.title}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <a href="/admin" target="_blank" rel="noreferrer" className="text-sm text-orange-600 font-semibold">Add / Edit Services (Admin)</a>
+          </div>
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          {services.map((service) => (
+          {services.filter((s) => (filterTitle ? s.title === filterTitle : true)).map((service) => (
             <div key={service.id} className="bg-white rounded-xl overflow-hidden border border-gray-100 hover:border-orange-200 transition-all group">
               <div className="h-56 overflow-hidden relative bg-gray-100 flex items-center justify-center">
                 <img
@@ -173,17 +206,16 @@ export default function ServicesPage() {
                 </div>
 
                 <div className="flex flex-wrap gap-3">
-                  <Link
-                    to={`/services/${service.id}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                  <button
+                    type="button"
+                    onClick={() => openServiceDetail(service.id)}
                     className="inline-flex items-center gap-2 px-5 py-2.5 border border-gray-200 text-gray-700 text-sm font-semibold rounded-lg hover:border-orange-300 hover:text-orange-600 hover:bg-orange-50 transition-colors whitespace-nowrap"
                   >
                     View details
                     <span className="w-4 h-4 flex items-center justify-center">
                       <i className="ri-external-link-line" />
                     </span>
-                  </Link>
+                  </button>
                   <button
                     onClick={() => setSelected(selected === service.id ? null : service.id)}
                     className="inline-flex items-center gap-2 px-5 py-2.5 bg-orange-600 text-white text-sm font-semibold rounded-lg hover:bg-orange-700 transition-colors cursor-pointer whitespace-nowrap"
