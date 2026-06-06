@@ -7,7 +7,12 @@ export const mockBlogPosts = [
     date: "2024-03-15",
     category: "CCTV",
     imageUrl: "https://readdy.ai/api/search-image?query=modern%20CCTV%20security%20camera%20system%20monitoring%20setup%20in%20business%20office%2C%20multiple%20screens%20showing%20camera%20feeds%2C%20professional%20security%20operations%20center%2C%20dramatic%20lighting&width=800&height=450&seq=blog1&orientation=landscape",
-    author: "PRIMECREST Security Team"
+    images: [
+      "https://readdy.ai/api/search-image?query=cctv%20camera%20installation%20in%20a%20modern%20office&width=1200&height=800",
+      "https://readdy.ai/api/search-image?query=security%20control%20room%20with%20multiple%20video%20feeds%20displayed&width=1200&height=800"
+    ],
+    author: "PRIMECREST Security Team",
+    published: true
   },
   {
     id: "2",
@@ -17,7 +22,12 @@ export const mockBlogPosts = [
     date: "2024-02-28",
     category: "Vault Engineering",
     imageUrl: "https://readdy.ai/api/search-image?query=open%20bank%20vault%20door%20showing%20interior%20shelving%20for%20cash%20storage%2C%20professional%20banking%20vault%20engineering%2C%20thick%20steel%20reinforced%20walls%2C%20secure%20room%20interior%2C%20dramatic%20professional%20lighting&width=800&height=450&seq=blog2&orientation=landscape",
-    author: "PRIMECREST Engineering Team"
+    images: [
+      "https://readdy.ai/api/search-image?query=interior%20bank%20vault%20with%20steel%20safes&width=1200&height=800",
+      "https://readdy.ai/api/search-image?query=vault%20engineer%20conducting%20a%20site%20survey%20for%20bank%20security&width=1200&height=800"
+    ],
+    author: "PRIMECREST Engineering Team",
+    published: true
   },
   {
     id: "3",
@@ -27,7 +37,12 @@ export const mockBlogPosts = [
     date: "2024-01-20",
     category: "Biometric Systems",
     imageUrl: "https://readdy.ai/api/search-image?query=side%20by%20side%20comparison%20of%20biometric%20fingerprint%20scanner%20and%20RFID%20card%20reader%20access%20control%20devices%2C%20security%20technology%2C%20modern%20corporate%20setting%2C%20professional%20clean%20background&width=800&height=450&seq=blog3&orientation=landscape",
-    author: "PRIMECREST Tech Team"
+    images: [
+      "https://readdy.ai/api/search-image?query=biometric%20fingerprint%20scanner%20beside%20an%20RFID%20card%20reader&width=1200&height=800",
+      "https://readdy.ai/api/search-image?query=employee%20using%20biometric%20access%20control%20in%20a%20professional%20environment&width=1200&height=800"
+    ],
+    author: "PRIMECREST Tech Team",
+    published: true
   },
   {
     id: "4",
@@ -37,6 +52,11 @@ export const mockBlogPosts = [
     date: "2023-12-10",
     category: "IT Engineering",
     imageUrl: "https://readdy.ai/api/search-image?query=small%20business%20IT%20setup%20workstations%20computers%20network%20hardware%20in%20modern%20office%2C%20professional%20IT%20infrastructure%2C%20neat%20desk%20setup%20with%20monitors%20and%20networking%20equipment%2C%20clean%20contemporary%20office&width=800&height=450&seq=blog4&orientation=landscape",
-    author: "PRIMECREST IT Team"
+    images: [
+      "https://readdy.ai/api/search-image?query=server%20rack%20and%20office%20IT%20setup%20for%20a%20small%20business&width=1200&height=800",
+      "https://readdy.ai/api/search-image?query=network%20cabling%20and%20desktop%20workstations%20in%20a%20modern%20office&width=1200&height=800"
+    ],
+    author: "PRIMECREST IT Team",
+    published: true
   }
 ];

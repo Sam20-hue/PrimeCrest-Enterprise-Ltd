@@ -330,7 +330,7 @@ export default function AdminSettings() {
             { name: 'companyName', label: 'Company Name', type: 'text', placeholder: 'PRIMECREST ENTERPRISE LTD', disabled: false },
             { name: 'tagline', label: 'Tagline', type: 'text', placeholder: 'Your Trusted Security Partner', disabled: false },
             { name: 'phone', label: 'Phone Number', type: 'tel', placeholder: '0721579821', disabled: false },
-            { name: 'email', label: 'Email Address', type: 'email', placeholder: 'primecrestenterprise@gmail.com', disabled: false },
+            { name: 'email', label: 'Email Address', type: 'email', placeholder: 'info@primecrestenterprise.com', disabled: false },
             { name: 'address', label: 'Physical Address', type: 'text', placeholder: 'Nairobi, Kenya', disabled: false },
           ] as const).map((field) => (
             <div key={field.name}>

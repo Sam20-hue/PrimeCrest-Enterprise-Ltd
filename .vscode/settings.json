@@ -30,5 +30,6 @@
       "savePassword": true,
       "profileName": "Primecrest MySQL"
     }
-  ]
+  ],
+  "python-envs.defaultEnvManager": "ms-python.python:system"
 }

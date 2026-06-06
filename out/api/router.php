@@ -45,7 +45,7 @@ function getDefaultSettings() {
         'companyName' => 'PRIMECREST ENTERPRISE LTD',
         'tagline' => 'Your Trusted Security & Technology Partner',
         'phone' => '0721579821',
-        'email' => 'primecrestenterprise@gmail.com',
+        'email' => 'info@primecrestenterprise.com',
         'address' => 'Nairobi, Kenya',
         'aboutText' => 'PRIMECREST ENTERPRISE LTD is a leading security and technology company providing comprehensive solutions across Kenya. With years of experience, we deliver professional CCTV installations, vault engineering, biometric systems, alarm installations, and IT infrastructure for banks, Saccos, businesses, and homes.',
         'adminPassword' => 'admin123',

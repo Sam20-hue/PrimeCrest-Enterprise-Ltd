@@ -6,8 +6,10 @@ const emptyService = (): Service => ({
   id: Date.now().toString(),
   title: '',
   description: '',
+  details: '',
   icon: 'ri-tools-line',
   image: '',
+  images: [],
   features: ['', '', ''],
 });
 
@@ -154,6 +156,18 @@ export default function AdminServices() {
                 />
               </div>
               <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Full Service Details</label>
+                <textarea
+                  value={editing.details}
+                  onChange={(e) => setEditing({ ...editing, details: e.target.value })}
+                  rows={8}
+                  maxLength={3000}
+                  className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-orange-400 resize-none"
+                  placeholder="Add longer service details, benefits, process steps, and other content to appear on the detail page."
+                />
+                <p className="text-xs text-gray-400 mt-2">Use new paragraphs and line breaks to separate sections.</p>
+              </div>
+              <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">Service Image</label>
                 <div
                   ref={dropZoneRef}
@@ -187,6 +201,17 @@ export default function AdminServices() {
                 {editing.image && (
                   <img src={editing.image} alt="preview" className="mt-2 h-24 w-full object-cover rounded-lg" />
                 )}
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Additional Gallery Image URLs</label>
+                <textarea
+                  value={(editing.images || []).join('\n')}
+                  onChange={(e) => setEditing({ ...editing, images: e.target.value.split('\n').filter(Boolean) })}
+                  rows={4}
+                  className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-orange-400 resize-none"
+                  placeholder="Enter one image URL per line"
+                />
+                <p className="text-xs text-gray-400 mt-2">These images appear in the service detail gallery.</p>
               </div>
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">Icon Class</label>

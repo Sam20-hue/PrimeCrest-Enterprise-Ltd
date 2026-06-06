@@ -9,12 +9,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit;
 }
 
-const SMTP_HOST = 'smtp.gmail.com';
+const SMTP_HOST = 'mail.primecrestenterprise.com';
 const SMTP_PORT = 587;
-const SMTP_USER = 'primecrestenterprise@gmail.com';
-const SMTP_PASS = 'itkl wlbi jgxn rnyd';
-const SMTP_SECURE = 'tls';
-const CONTACT_RECIPIENT = 'primecrestenterprise@gmail.com';
+const SMTP_USER = 'info@primecrestenterprise.com';
+const SMTP_PASS = 'Primecrest321!';
+const SMTP_SECURE = 'false';
+const SENDER_EMAIL = 'info@primecrestenterprise.com';
+const CONTACT_RECIPIENT = 'info@primecrestenterprise.com';
+const SUPPORT_PHONE = '+254 72 157 9821';
 
 function respond($code, $payload) {
     http_response_code($code);
@@ -231,10 +233,10 @@ $htmlMessage = '<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="vie
     '<div class="section"><span class="section-title">Summary</span><div class="card"><strong>Received</strong><span>' . date('F j, Y \a\t g:i A') . '</span></div></div>' .
     '</div><div class="footer">' .
     '<p>This message was generated automatically by the Primecrest Enterprise contact form.</p>' .
-    '<p><a href="mailto:' . CONTACT_RECIPIENT . '">Reply to ' . CONTACT_RECIPIENT . '</a></p>' .
+    '<p><a href="mailto:' . htmlspecialchars($email, ENT_QUOTES, 'UTF-8') . '">Reply to ' . htmlspecialchars($email, ENT_QUOTES, 'UTF-8') . '</a></p>' .
     '</div></div></div></body></html>';
 
-$sender = SMTP_USER;
+$sender = SENDER_EMAIL;
 $replyTo = $email;
 
 $adminSent = sendSmtpMail(CONTACT_RECIPIENT, $subject, $htmlMessage, $sender, $replyTo, $error);
@@ -277,7 +279,7 @@ $confirmationHtml = '<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name
     '</div>' .
     '<div class="section"><span class="section-title">Message</span><div class="message-box">' . nl2br(htmlspecialchars($message, ENT_QUOTES, 'UTF-8')) . '</div></div>' .
     '<div class="section"><span class="section-title">What Happens Next</span><div class="card"><strong>Response Time</strong><span>Our team typically replies within 24-48 hours.</span></div>' .
-    '<div class="card"><strong>Need faster support?</strong><span>Reply to this email or call our emergency line at +254 700 000 000.</span></div></div>' .
+    '<div class="card"><strong>Need faster support?</strong><span>Reply to this email or call our emergency line at ' . SUPPORT_PHONE . '.</span></div></div>' .
     '<div class="section"><a href="mailto:' . CONTACT_RECIPIENT . '" class="button">Contact Primecrest Support</a></div>' .
     '</div><div class="footer"><p>Primecrest Enterprise LTD</p><p>Professional Security & Technology Solutions</p></div></div></div></body></html>';
 

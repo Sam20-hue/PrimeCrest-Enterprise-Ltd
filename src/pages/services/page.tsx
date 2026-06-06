@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useSiteData } from '../../context/SiteDataContext';
 import { translations } from '../../i18n/translations';
 import { getContactApiEndpoints } from '../../utils/contactApi';
@@ -171,15 +172,28 @@ export default function ServicesPage() {
                   ))}
                 </div>
 
-                <button
-                  onClick={() => setSelected(selected === service.id ? null : service.id)}
-                  className="inline-flex items-center gap-2 px-5 py-2.5 bg-orange-600 text-white text-sm font-semibold rounded-lg hover:bg-orange-700 transition-colors cursor-pointer whitespace-nowrap"
-                >
-                  Request This Service
-                  <span className="w-4 h-4 flex items-center justify-center">
-                    <i className="ri-arrow-right-line" />
-                  </span>
-                </button>
+                <div className="flex flex-wrap gap-3">
+                  <Link
+                    to={`/services/${service.id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 px-5 py-2.5 border border-gray-200 text-gray-700 text-sm font-semibold rounded-lg hover:border-orange-300 hover:text-orange-600 hover:bg-orange-50 transition-colors whitespace-nowrap"
+                  >
+                    View details
+                    <span className="w-4 h-4 flex items-center justify-center">
+                      <i className="ri-external-link-line" />
+                    </span>
+                  </Link>
+                  <button
+                    onClick={() => setSelected(selected === service.id ? null : service.id)}
+                    className="inline-flex items-center gap-2 px-5 py-2.5 bg-orange-600 text-white text-sm font-semibold rounded-lg hover:bg-orange-700 transition-colors cursor-pointer whitespace-nowrap"
+                  >
+                    Request This Service
+                    <span className="w-4 h-4 flex items-center justify-center">
+                      <i className="ri-arrow-right-line" />
+                    </span>
+                  </button>
+                </div>
               </div>
 
               {/* Expanded Contact Prompt */}

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useSiteData } from '../../context/SiteDataContext';
 import { translations } from '../../i18n/translations';
 
@@ -6,11 +7,10 @@ export default function BlogPage() {
   const { blogPosts, language } = useSiteData();
   const t = translations[language].blog;
   const [activeCategory, setActiveCategory] = useState('All');
-  const [selected, setSelected] = useState<string | null>(null);
 
-  const categories = ['All', ...Array.from(new Set(blogPosts.map((p) => p.category)))];
-  const filtered = activeCategory === 'All' ? blogPosts : blogPosts.filter((p) => p.category === activeCategory);
-  const openPost = blogPosts.find((p) => p.id === selected);
+  const publishedPosts = blogPosts.filter((post) => post.published);
+  const categories = ['All', ...Array.from(new Set(publishedPosts.map((p) => p.category)))];
+  const filtered = activeCategory === 'All' ? publishedPosts : publishedPosts.filter((p) => p.category === activeCategory);
 
   return (
     <main className="pt-24 min-h-screen pb-20">
@@ -71,15 +71,15 @@ export default function BlogPage() {
                 </div>
                 <h2 className="font-bold text-gray-900 text-base leading-snug mb-3 line-clamp-2">{post.title}</h2>
                 <p className="text-gray-500 text-sm leading-relaxed mb-5 line-clamp-3">{post.excerpt}</p>
-                <button
-                  onClick={() => setSelected(post.id)}
-                  className="inline-flex items-center gap-1 text-orange-600 text-sm font-semibold hover:gap-2 transition-all cursor-pointer"
+                <Link
+                  to={`/blog/${post.id}`}
+                  className="inline-flex items-center gap-1 text-orange-600 text-sm font-semibold hover:gap-2 transition-all"
                 >
                   {t.read_more}
                   <span className="w-4 h-4 flex items-center justify-center">
                     <i className="ri-arrow-right-line" />
                   </span>
-                </button>
+                </Link>
               </div>
             </article>
           ))}
@@ -93,39 +93,6 @@ export default function BlogPage() {
         )}
       </section>
 
-      {/* Post Modal */}
-      {openPost && (
-        <div
-          className="fixed inset-0 z-50 bg-black/60 flex items-start justify-center p-4 overflow-y-auto"
-          onClick={() => setSelected(null)}
-        >
-          <div
-            className="bg-white rounded-2xl max-w-3xl w-full mt-10 mb-10 overflow-hidden"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="h-64 relative">
-              <img src={openPost.imageUrl} alt={openPost.title} className="w-full h-full object-cover object-top" />
-              <button
-                onClick={() => setSelected(null)}
-                className="absolute top-4 right-4 w-9 h-9 flex items-center justify-center bg-white/90 rounded-full cursor-pointer hover:bg-white"
-              >
-                <i className="ri-close-line text-gray-700" />
-              </button>
-              <span className="absolute top-4 left-4 px-3 py-1 bg-orange-600 text-white text-xs font-semibold rounded-full">
-                {openPost.category}
-              </span>
-            </div>
-            <div className="p-8">
-              <div className="flex items-center gap-4 text-xs text-gray-400 mb-4">
-                <span><i className="ri-calendar-line mr-1" />{openPost.date}</span>
-                <span><i className="ri-user-line mr-1" />{openPost.author}</span>
-              </div>
-              <h2 className="text-2xl font-black text-gray-900 mb-6">{openPost.title}</h2>
-              <div className="text-gray-600 text-sm leading-relaxed whitespace-pre-line">{openPost.content}</div>
-            </div>
-          </div>
-        </div>
-      )}
     </main>
   );
 }

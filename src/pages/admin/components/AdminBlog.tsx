@@ -10,7 +10,9 @@ const emptyPost = (): BlogPost => ({
   date: new Date().toISOString().split('T')[0],
   category: '',
   imageUrl: '',
+  images: [],
   author: 'PRIMECREST Team',
+  published: false,
 });
 
 export default function AdminBlog() {
@@ -191,6 +193,30 @@ export default function AdminBlog() {
                   <img src={editing.imageUrl} alt="preview" className="mt-2 h-24 w-full object-cover rounded-lg" />
                 )}
               </div>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="block text-sm font-semibold text-gray-700">Publish Status</label>
+                  <label className="inline-flex items-center gap-2 text-sm text-gray-700">
+                    <input
+                      type="checkbox"
+                      checked={editing.published}
+                      onChange={(e) => setEditing({ ...editing, published: e.target.checked })}
+                      className="h-4 w-4 text-orange-600 border-gray-300 rounded"
+                    />
+                    Published
+                  </label>
+                </div>
+                <div className="space-y-2">
+                  <label className="block text-sm font-semibold text-gray-700">Additional Image URLs</label>
+                  <textarea
+                    value={(editing.images || []).join('\n')}
+                    onChange={(e) => setEditing({ ...editing, images: e.target.value.split('\n').filter(Boolean) })}
+                    rows={3}
+                    className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-orange-400 resize-none"
+                    placeholder="One image URL per line"
+                  />
+                </div>
+              </div>
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">Excerpt *</label>
                 <textarea
@@ -248,6 +274,9 @@ export default function AdminBlog() {
               <div className="flex items-center gap-2 mb-1">
                 <span className="text-xs font-semibold text-orange-600 bg-orange-50 px-2 py-0.5 rounded-full">{post.category}</span>
                 <span className="text-xs text-gray-400">{post.date}</span>
+                <span className={`text-xs px-2 py-0.5 rounded-full ${post.published ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-600'}`}>
+                  {post.published ? 'Published' : 'Draft'}
+                </span>
               </div>
               <h4 className="font-bold text-gray-900 text-sm line-clamp-1">{post.title}</h4>
             </div>

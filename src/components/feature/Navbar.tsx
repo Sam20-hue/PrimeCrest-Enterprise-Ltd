@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useSiteData } from '../../context/SiteDataContext';
-import { translations } from '../../i18n/translations';
+import { translations, type Lang } from '../../i18n/translations';
 
 interface NavbarProps {
   onLanguageClick: () => void;
@@ -37,6 +37,24 @@ export default function Navbar({ onLanguageClick }: NavbarProps) {
     { path: '/about', label: t.about },
     { path: '/contact', label: t.contact },
   ];
+
+  const languageFlagMap: Record<Lang, string> = {
+    en: '🇬🇧',
+    fr: '🇫🇷',
+    es: '🇪🇸',
+    ar: '🇸🇦',
+    de: '🇩🇪',
+    pt: '🇵🇹',
+  };
+
+  const languageLabelMap: Record<Lang, string> = {
+    en: 'EN',
+    fr: 'FR',
+    es: 'ES',
+    ar: 'AR',
+    de: 'DE',
+    pt: 'PT',
+  };
 
   return (
     <header
@@ -80,16 +98,16 @@ export default function Navbar({ onLanguageClick }: NavbarProps) {
           ))}
           <button
             onClick={onLanguageClick}
-            className={`px-3 py-2 text-sm font-medium rounded-md transition-all duration-200 flex items-center gap-1 whitespace-nowrap cursor-pointer ${
+            aria-label={t.language}
+            className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm font-medium transition-all duration-200 whitespace-nowrap cursor-pointer ${
               showWhiteBg
-                ? 'text-gray-700 hover:text-orange-600 hover:bg-orange-50'
-                : 'text-white hover:text-orange-300'
+                ? 'border-gray-200 bg-white text-gray-700 hover:border-orange-300 hover:text-orange-600 hover:bg-orange-50'
+                : 'border-white/30 bg-white/10 text-white hover:border-white hover:text-orange-300 hover:bg-white/10'
             }`}
           >
-            <span className="w-4 h-4 flex items-center justify-center">
-              <i className="ri-global-line text-base" />
-            </span>
-            {t.language}
+            <span className="text-base leading-none">{languageFlagMap[language] ?? '🌐'}</span>
+            <span>{languageLabelMap[language] ?? language.toUpperCase()}</span>
+            <i className="ri-arrow-down-s-line text-base leading-none" />
           </button>
           <Link
             to="/contact"
