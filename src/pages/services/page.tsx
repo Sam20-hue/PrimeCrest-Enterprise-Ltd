@@ -156,7 +156,7 @@ export default function ServicesPage() {
 
       {/* Services Grid */}
       <section className="py-20 max-w-7xl mx-auto px-6">
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center justify-start mb-6">
           <div className="flex items-center gap-3">
             <label className="text-sm text-gray-600">Filter:</label>
             <select
@@ -169,9 +169,6 @@ export default function ServicesPage() {
                 <option key={s.id} value={s.title}>{s.title}</option>
               ))}
             </select>
-          </div>
-          <div>
-            <a href="/admin" target="_blank" rel="noreferrer" className="text-sm text-orange-600 font-semibold">Add / Edit Services (Admin)</a>
           </div>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">

@@ -10,6 +10,7 @@ const emptyService = (): Service => ({
   icon: 'ri-tools-line',
   image: '',
   images: [],
+  imagesCaptions: [],
   features: ['', '', ''],
 });
 
@@ -25,9 +26,34 @@ export default function AdminServices() {
   const dropZoneRef = useRef<HTMLDivElement>(null);
 
   const handleEdit = (s: Service) => { setEditing({ ...s }); setShowForm(true); };
-  const serviceTitleOptions = services.map((service) => service.title).filter(Boolean);
+  const [serviceTitles, setServiceTitles] = useState<string[]>(() => {
+    try {
+      const raw = localStorage.getItem('pc_service_titles');
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const saveServiceTitles = (titles: string[]) => {
+    setServiceTitles(titles);
+    try { localStorage.setItem('pc_service_titles', JSON.stringify(titles)); } catch {}
+  };
+
+  const serviceTitleOptions = Array.from(new Set([...(serviceTitles || []), ...services.map((service) => service.title).filter(Boolean)]));
 
   const handleNew = () => { setEditing(emptyService()); setShowForm(true); };
+
+  const addServiceTitle = (title: string) => {
+    if (!title || serviceTitleOptions.includes(title)) return;
+    const updated = [title, ...serviceTitleOptions];
+    saveServiceTitles(updated);
+  };
+
+  const removeServiceTitle = (title: string) => {
+    const updated = (serviceTitleOptions || []).filter((t) => t !== title);
+    saveServiceTitles(updated);
+  };
 
   const handleSave = () => {
     if (!editing) return;
@@ -104,6 +130,7 @@ export default function AdminServices() {
     );
 
     setEditing({ ...editing, images: [...(editing.images || []), ...urls.filter(Boolean)] });
+    setEditing((prev) => ({ ...prev, imagesCaptions: [...(prev?.imagesCaptions || []), ...urls.map(() => '')] }));
   }, [editing]);
 
   const removeGalleryImage = (index: number) => {
@@ -169,39 +196,36 @@ export default function AdminServices() {
               </button>
             </div>
             <div className="space-y-4">
-              {serviceTitleOptions.length > 0 && (
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Choose or type a service title</label>
-                  <div className="flex gap-3 flex-col sm:flex-row">
-                    <select
-                      value={editing.title}
-                      onChange={(e) => setEditing({ ...editing, title: e.target.value })}
-                      className="w-full sm:w-1/2 px-4 py-3 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-orange-400"
-                    >
-                      <option value="">Select existing title</option>
-                      {serviceTitleOptions.map((title) => (
-                        <option key={title} value={title}>{title}</option>
-                      ))}
-                    </select>
-                    <input
-                      type="text"
-                      value={editing.title}
-                      onChange={(e) => setEditing({ ...editing, title: e.target.value })}
-                      className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-orange-400"
-                      placeholder="Or enter a new service title"
-                    />
-                  </div>
-                </div>
-              )}
+              {/* Service Title select moved into the main title field below; no top-level selector here */}
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">Service Title *</label>
-                <input
-                  type="text"
-                  value={editing.title}
-                  onChange={(e) => setEditing({ ...editing, title: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-orange-400"
-                  placeholder="e.g. CCTV Installation"
-                />
+                <div className="flex gap-3">
+                  <select
+                    value={editing.title}
+                    onChange={(e) => setEditing({ ...editing, title: e.target.value })}
+                    className="w-1/3 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-orange-400"
+                  >
+                    <option value="">Select existing title</option>
+                    {serviceTitleOptions.map((title) => (
+                      <option key={title} value={title}>{title}</option>
+                    ))}
+                  </select>
+                  <input
+                    type="text"
+                    value={editing.title}
+                    onChange={(e) => setEditing({ ...editing, title: e.target.value })}
+                    className="flex-1 px-4 py-3 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-orange-400"
+                    placeholder="e.g. CCTV Installation"
+                  />
+                </div>
+                <div className="mt-2 flex items-center gap-2">
+                  <input id="quickTitle" placeholder="Add quick title" className="px-3 py-2 border border-gray-200 rounded-lg text-sm flex-1" />
+                  <button type="button" onClick={() => {
+                    const el = document.getElementById('quickTitle') as HTMLInputElement | null;
+                    const val = el?.value?.trim();
+                    if (val) { addServiceTitle(val); if (el) el.value = ''; }
+                  }} className="px-3 py-2 bg-orange-600 text-white rounded-lg text-sm">Add</button>
+                </div>
               </div>
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">Description *</label>
@@ -283,7 +307,7 @@ export default function AdminServices() {
                 />
                 <textarea
                   value={(editing.images || []).join('\n')}
-                  onChange={(e) => setEditing({ ...editing, images: e.target.value.split('\n').filter(Boolean) })}
+                  onChange={(e) => setEditing({ ...editing, images: e.target.value.split('\n').filter(Boolean), imagesCaptions: (e.target.value.split('\n').filter(Boolean) || []).map(() => '') })}
                   rows={4}
                   className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-orange-400 resize-none"
                   placeholder="Enter one image URL per line"
@@ -301,6 +325,14 @@ export default function AdminServices() {
                         >
                           <i className="ri-close-line" />
                         </button>
+                        <div className="p-2">
+                          <label className="text-xs text-gray-500">Image description</label>
+                          <input type="text" value={(editing.imagesCaptions || [])[index] || ''} onChange={(e) => {
+                            const caps = [...(editing.imagesCaptions || [])];
+                            caps[index] = e.target.value;
+                            setEditing({ ...editing, imagesCaptions: caps });
+                          }} className="w-full px-2 py-1 mt-1 text-sm border border-gray-200 rounded" placeholder="Describe this image" />
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -360,6 +392,25 @@ export default function AdminServices() {
       )}
 
       {/* Services List */}
+      {/* Service Titles Manager */}
+      <div className="bg-white rounded-xl p-4 border border-gray-100 mb-6">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="font-bold text-gray-900 text-sm">Service Titles</h3>
+          <p className="text-xs text-gray-500">Manage quick titles for the Add Service form</p>
+        </div>
+        <div className="flex items-center gap-3 mb-3">
+          <input id="managerNewTitle" placeholder="New title e.g. Vault Engineering" className="px-3 py-2 border border-gray-200 rounded-lg text-sm flex-1" />
+          <button type="button" onClick={() => { const el = document.getElementById('managerNewTitle') as HTMLInputElement | null; const val = el?.value?.trim(); if (val) { addServiceTitle(val); if (el) el.value = ''; } }} className="px-3 py-2 bg-orange-600 text-white rounded-lg text-sm">Add Title</button>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {serviceTitleOptions.map((t) => (
+            <div key={t} className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-full px-3 py-1 text-sm">
+              <span>{t}</span>
+              <button type="button" onClick={() => removeServiceTitle(t)} className="text-red-500 text-xs">Remove</button>
+            </div>
+          ))}
+        </div>
+      </div>
       <div className="space-y-4">
         {services.map((service) => (
           <div key={service.id} className="bg-white rounded-xl p-5 border border-gray-100 flex items-center gap-5">

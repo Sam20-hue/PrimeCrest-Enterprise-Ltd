@@ -50,6 +50,7 @@ export interface Service {
   icon: string;
   image: string;
   images?: string[];
+  imagesCaptions?: string[];
   features: string[];
 }
 
