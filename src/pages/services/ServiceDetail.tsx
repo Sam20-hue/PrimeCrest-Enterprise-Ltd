@@ -1,6 +1,7 @@
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useSiteData } from '../../context/SiteDataContext';
+import RequestModal from '../../components/RequestModal';
 
 const buildServicesUrl = () => {
   const base = typeof window !== 'undefined' ? window.location.origin : '';
@@ -11,6 +12,7 @@ const buildServicesUrl = () => {
 export default function ServiceDetailPage() {
   const { id } = useParams();
   const { services } = useSiteData();
+  const [showRequestModal, setShowRequestModal] = useState(false);
   const service = services.find((serviceItem) => serviceItem.id === id);
 
   const returnToServices = useCallback(() => {
@@ -89,7 +91,7 @@ export default function ServiceDetailPage() {
               <p className="text-sm text-gray-700">{service.description}</p>
               <div className="mt-4 flex gap-3">
                 <button type="button" onClick={returnToServices} className="px-4 py-2 border rounded text-sm">Back to services</button>
-                <a href={`mailto:info@primecrestenterprise.com?subject=${encodeURIComponent(`Request for ${service.title}`)}`} className="px-4 py-2 bg-orange-600 text-white rounded text-sm">Request this service</a>
+                <button type="button" onClick={() => setShowRequestModal(true)} className="px-4 py-2 bg-orange-600 text-white rounded text-sm hover:bg-orange-700 transition-colors">Request this service</button>
               </div>
             </div>
           </div>
@@ -130,6 +132,13 @@ export default function ServiceDetailPage() {
           </aside>
         </div>
       </section>
+
+      <RequestModal
+        isOpen={showRequestModal}
+        onClose={() => setShowRequestModal(false)}
+        serviceName={service.title}
+        serviceId={service.id}
+      />
     </main>
   );
 }

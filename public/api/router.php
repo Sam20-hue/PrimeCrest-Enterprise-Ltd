@@ -39,6 +39,65 @@ function saveJson($filename, $data) {
     file_put_contents($path, json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
 }
 
+const NEWSLETTER_EMAIL = 'newsletter@primecrestenterprise.com';
+const CONTACT_SENDER_EMAIL = 'info@primecrestenterprise.com';
+
+function getSubscribers() {
+    $data = loadJson('subscribers.json');
+    if (!is_array($data)) {
+        return [];
+    }
+    return array_values(array_filter(array_map('trim', $data), 'strlen'));
+}
+
+function saveSubscribers($subscribers) {
+    saveJson('subscribers.json', array_values(array_unique($subscribers)));
+}
+
+function isValidEmail(string $email): bool {
+    return filter_var($email, FILTER_VALIDATE_EMAIL) !== false;
+}
+
+function buildNewsletterHtml(array $post): string {
+    $title = htmlspecialchars($post['title'] ?? 'Primecrest Enterprise Update', ENT_QUOTES, 'UTF-8');
+    $excerpt = nl2br(htmlspecialchars($post['excerpt'] ?? '', ENT_QUOTES, 'UTF-8'));
+    $content = nl2br(htmlspecialchars($post['content'] ?? '', ENT_QUOTES, 'UTF-8'));
+    $author = htmlspecialchars($post['author'] ?? 'Primecrest Enterprise', ENT_QUOTES, 'UTF-8');
+    $category = htmlspecialchars($post['category'] ?? 'Update', ENT_QUOTES, 'UTF-8');
+    $date = htmlspecialchars($post['date'] ?? date('F j, Y'), ENT_QUOTES, 'UTF-8');
+    $imageUrl = htmlspecialchars($post['imageUrl'] ?? '', ENT_QUOTES, 'UTF-8');
+
+    return '<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">' .
+        '<style>body{margin:0;padding:0;background:#f4f5f7;color:#1f2937;font-family:Arial,Helvetica,sans-serif;} .container{max-width:720px;margin:0 auto;padding:32px;} .header{background:#111827;color:#f59e0b;padding:30px;border-radius:24px 24px 0 0;text-align:center;} .header h1{margin:0;font-size:30px;line-height:1.05;} .meta{margin-top:14px;font-size:14px;color:#e5e7eb;} .card{background:#ffffff;border-radius:24px;padding:28px;box-shadow:0 24px 60px rgba(15,23,42,0.08);margin-top:-20px;} .badge{display:inline-block;padding:6px 14px;background:#fde68a;color:#92400e;font-size:12px;font-weight:700;border-radius:9999px;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:18px;} .excerpt{font-size:16px;line-height:1.8;color:#334155;margin-bottom:20px;} .content{font-size:15px;line-height:1.85;color:#475569;} .footer{margin-top:32px;padding-top:24px;border-top:1px solid #e2e8f0;color:#64748b;font-size:13px;text-align:center;} .button{display:inline-block;margin-top:24px;padding:14px 28px;background:#111827;color:#ffffff;border-radius:12px;text-decoration:none;font-weight:700;}</style>' .
+        '</head><body><div class="container"><div class="header"><span class="badge">' . $category . '</span><h1>' . $title . '</h1><p class="meta">Published ' . $date . ' • by ' . $author . '</p></div><div class="card">' .
+        ($imageUrl ? '<img src="' . $imageUrl . '" alt="' . $title . '" style="width:100%;border-radius:18px;object-fit:cover;margin-bottom:24px;" />' : '') .
+        '<div class="excerpt">' . $excerpt . '</div><div class="content">' . $content . '</div>' .
+        '<a class="button" href="https://' . ($_SERVER['HTTP_HOST'] ?? 'primecrestenterprise.com') . '/blog" target="_blank">Read more on Primecrest</a>' .
+        '<div class="footer"><p>Thank you for following Primecrest Enterprise updates.</p><p>For support, reply to this message or visit primecrestenterprise.com.</p></div></div></div></body></html>';
+}
+
+function sendNewsletterMessage(array $post, array $subscribers): bool {
+    if (empty($subscribers)) {
+        return false;
+    }
+    $subject = 'New Primecrest Blog Post: ' . ($post['title'] ?? 'Primecrest Enterprise Update');
+    $to = CONTACT_SENDER_EMAIL;
+    $bcc = implode(', ', array_map('trim', array_filter($subscribers, 'isValidEmail')));
+    if ($bcc === '') {
+        return false;
+    }
+
+    $headers = [];
+    $headers[] = 'MIME-Version: 1.0';
+    $headers[] = 'Content-type: text/html; charset=utf-8';
+    $headers[] = 'From: Primecrest Newsletter <' . NEWSLETTER_EMAIL . '>';
+    $headers[] = 'Reply-To: ' . CONTACT_SENDER_EMAIL;
+    $headers[] = 'Bcc: ' . $bcc;
+    $headers[] = 'X-Mailer: PHP/' . phpversion();
+
+    return mail($to, $subject, buildNewsletterHtml($post), implode("\r\n", $headers));
+}
+
 function getDefaultSettings() {
     return [
         'logoUrl' => 'https://static.readdy.ai/image/2645941fdc0e183360970fc234d34970/773766d2f6ed38db8ecc7ecb533b68b7.jpeg',
@@ -212,12 +271,125 @@ if ($resource === 'sync' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     respond(200, ['success' => true, 'updated' => $saved]);
 }
 
-$allowedResources = ['services', 'gallery', 'blog', 'products', 'settings', 'testimonials', 'team', 'auth'];
+$allowedResources = ['services', 'gallery', 'blog', 'products', 'settings', 'testimonials', 'team', 'subscribers', 'auth'];
 if (!in_array($resource, $allowedResources, true)) {
     respond(404, ['error' => 'Resource not found.']);
 }
 
 $method = $_SERVER['REQUEST_METHOD'];
+
+if ($resource === 'subscribers') {
+    if ($method === 'GET') {
+        respond(200, getSubscribers());
+    }
+
+    if ($method === 'POST') {
+        $payload = getRequestBody();
+        if (!is_array($payload) || empty($payload['email'] ?? '')) {
+            respond(400, ['error' => 'Email is required.']);
+        }
+        $email = trim(strtolower($payload['email']));
+        if (!isValidEmail($email)) {
+            respond(400, ['error' => 'Invalid email address.']);
+        }
+        $subscribers = getSubscribers();
+        if (in_array($email, $subscribers, true)) {
+            respond(200, ['success' => true, 'message' => 'Already subscribed.', 'email' => $email]);
+        }
+        $subscribers[] = $email;
+        saveSubscribers($subscribers);
+        respond(201, ['success' => true, 'email' => $email]);
+    }
+
+    if ($method === 'DELETE') {
+        $email = trim(strtolower($_GET['email'] ?? ''));
+        if ($email === '' || !isValidEmail($email)) {
+            respond(400, ['error' => 'Subscriber email is required.']);
+        }
+        $subscribers = getSubscribers();
+        $filtered = array_values(array_filter($subscribers, function ($item) use ($email) {
+            return strtolower(trim($item)) !== $email;
+        }));
+        saveSubscribers($filtered);
+        respond(200, ['success' => true, 'email' => $email]);
+    }
+
+    respond(405, ['error' => 'Method not allowed.']);
+}
+
+if ($resource === 'sync' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    $payload = getRequestBody();
+    if (!is_array($payload)) {
+        respond(400, ['error' => 'Invalid sync payload.']);
+    }
+
+    $saved = [];
+    $collections = ['services', 'gallery', 'blog', 'products', 'testimonials', 'team'];
+    $newsletterQueue = [];
+    $existingBlog = loadJson('blog.json');
+    if (!is_array($existingBlog)) {
+        $existingBlog = [];
+    }
+
+    if (isset($payload['settings']) && is_array($payload['settings'])) {
+        saveJson('settings.json', $payload['settings']);
+        $saved[] = 'settings';
+    }
+
+    foreach ($collections as $collection) {
+        if (!isset($payload[$collection]) || !is_array($payload[$collection])) {
+            continue;
+        }
+
+        if ($collection === 'blog') {
+            $newBlog = [];
+            foreach ($payload['blog'] as $item) {
+                if (!is_array($item)) {
+                    continue;
+                }
+                $itemId = trim((string)($item['id'] ?? '')) ?: generateId();
+                $itemDate = trim((string)($item['date'] ?? $item['created_at'] ?? date('Y-m-d H:i:s')));
+                $isPublished = !empty($item['published']);
+                $oldIndex = findItemIndex($existingBlog, $itemId);
+                $oldItem = $oldIndex !== null ? $existingBlog[$oldIndex] : null;
+                $alreadySent = !empty($item['newsletterSent']) || (!empty($oldItem['newsletterSent']));
+
+                if ($isPublished && !$alreadySent && (!$oldItem || empty($oldItem['published']) || empty($oldItem['newsletterSent']))) {
+                    $newsletterQueue[] = array_merge($item, [
+                        'id' => $itemId,
+                        'date' => $itemDate,
+                        'published' => true,
+                        'newsletterSent' => true,
+                    ]);
+                    $alreadySent = true;
+                }
+
+                $newBlog[] = array_merge($item, [
+                    'id' => $itemId,
+                    'created_at' => $itemDate,
+                    'published' => $isPublished,
+                    'newsletterSent' => $alreadySent,
+                ]);
+            }
+            saveJson('blog.json', $newBlog);
+            $saved[] = 'blog';
+
+            $subscribers = getSubscribers();
+            if (!empty($newsletterQueue) && !empty($subscribers)) {
+                foreach ($newsletterQueue as $post) {
+                    sendNewsletterMessage($post, $subscribers);
+                }
+            }
+
+            continue;
+        }
+
+        saveJson($collection . '.json', $payload[$collection]);
+        $saved[] = $collection;
+    }
+
+    respond(200, ['success' => true, 'updated' => $saved]);
+}
 
 if ($resource === 'settings') {
     $settings = loadJson('settings.json');

@@ -3,14 +3,27 @@ import { Link } from 'react-router-dom';
 import { useSiteData } from '../../context/SiteDataContext';
 import { translations } from '../../i18n/translations';
 
+const formatDate = (value: string) => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+};
+
 export default function BlogPage() {
-  const { blogPosts, language } = useSiteData();
+  const { blogPosts, authors, language } = useSiteData();
   const t = translations[language].blog;
   const [activeCategory, setActiveCategory] = useState('All');
+  const [activeAuthor, setActiveAuthor] = useState('All');
 
   const publishedPosts = blogPosts.filter((post) => post.published);
   const categories = ['All', ...Array.from(new Set(publishedPosts.map((p) => p.category)))];
-  const filtered = activeCategory === 'All' ? publishedPosts : publishedPosts.filter((p) => p.category === activeCategory);
+  const authorNames = ['All', ...Array.from(new Set(publishedPosts.map((post) => authors.find((a) => a.id === post.authorId)?.name || post.author || 'Unknown author')))];
+  const filtered = publishedPosts.filter((post) => {
+    const matchesCategory = activeCategory === 'All' || post.category === activeCategory;
+    const postAuthorName = authors.find((a) => a.id === post.authorId)?.name || post.author || 'Unknown author';
+    const matchesAuthor = activeAuthor === 'All' || postAuthorName === activeAuthor;
+    return matchesCategory && matchesAuthor;
+  });
 
   return (
     <main className="pt-24 min-h-screen pb-20">
@@ -32,7 +45,7 @@ export default function BlogPage() {
 
       {/* Filter */}
       <section className="py-8 bg-white border-b border-gray-100">
-        <div className="max-w-7xl mx-auto px-6 flex flex-wrap gap-3">
+        <div className="max-w-7xl mx-auto px-6 flex flex-wrap gap-3 mb-4">
           {categories.map((cat) => (
             <button
               key={cat}
@@ -44,6 +57,21 @@ export default function BlogPage() {
               }`}
             >
               {cat}
+            </button>
+          ))}
+        </div>
+        <div className="max-w-7xl mx-auto px-6 flex flex-wrap gap-3">
+          {authorNames.map((author) => (
+            <button
+              key={author}
+              onClick={() => setActiveAuthor(author)}
+              className={`px-4 py-2 text-sm rounded-full font-medium transition-all cursor-pointer whitespace-nowrap ${
+                activeAuthor === author
+                  ? 'bg-orange-600 text-white'
+                  : 'bg-gray-100 text-gray-600 hover:bg-orange-100 hover:text-orange-700'
+              }`}
+            >
+              {author}
             </button>
           ))}
         </div>
@@ -65,9 +93,22 @@ export default function BlogPage() {
                 </div>
               </div>
               <div className="p-6">
-                <div className="flex items-center gap-3 text-xs text-gray-400 mb-3">
-                  <span className="flex items-center gap-1"><i className="ri-calendar-line" />{post.date}</span>
-                  <span className="flex items-center gap-1"><i className="ri-user-line" />{post.author}</span>
+                <div className="flex flex-wrap items-center gap-3 text-xs text-gray-400 mb-3">
+                  <span className="flex items-center gap-1"><i className="ri-calendar-line" />{formatDate(post.date)}</span>
+                  <button
+                    type="button"
+                    onClick={() => setActiveAuthor(authors.find((a) => a.id === post.authorId)?.name || post.author || 'Unknown author')}
+                    className="inline-flex items-center gap-2 text-xs text-gray-400 hover:text-orange-600 transition-colors"
+                  >
+                    {authors.find((a) => a.id === post.authorId)?.imageUrl && (
+                      <img
+                        src={authors.find((a) => a.id === post.authorId)?.imageUrl || ''}
+                        alt={authors.find((a) => a.id === post.authorId)?.name || post.author}
+                        className="w-5 h-5 rounded-full object-cover"
+                      />
+                    )}
+                    <i className="ri-user-line" />{authors.find((a) => a.id === post.authorId)?.name || post.author || 'Unknown author'}
+                  </button>
                 </div>
                 <h2 className="font-bold text-gray-900 text-base leading-snug mb-3 line-clamp-2">{post.title}</h2>
                 <p className="text-gray-500 text-sm leading-relaxed mb-5 line-clamp-3">{post.excerpt}</p>

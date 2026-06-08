@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback } from 'react';
 import { useSiteData, BlogPost } from '../../../context/SiteDataContext';
 import { mysqlService } from '../../../services/mysqlService';
+import RichTextEditor from '../../../components/RichTextEditor';
 
 const emptyPost = (): BlogPost => ({
   id: Date.now().toString(),
@@ -11,7 +12,8 @@ const emptyPost = (): BlogPost => ({
   category: '',
   imageUrl: '',
   images: [],
-  author: 'PRIMECREST Team',
+  author: '',
+  authorId: '',
   published: false,
 });
 
@@ -22,9 +24,12 @@ export default function AdminBlog() {
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const [isImagesDragging, setIsImagesDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dropZoneRef = useRef<HTMLDivElement>(null);
+  const imagesDropZoneRef = useRef<HTMLDivElement>(null);
 
+  const { authors } = useSiteData();
   const handleEdit = (p: BlogPost) => { setEditing({ ...p }); setShowForm(true); };
   const handleNew = () => { setEditing(emptyPost()); setShowForm(true); };
 
@@ -66,6 +71,32 @@ export default function AdminBlog() {
     setEditing({ ...editing, imageUrl });
   }, [editing]);
 
+  const processAdditionalImages = useCallback(async (files: FileList | null) => {
+    if (!files || files.length === 0 || !editing) return;
+    const imageFiles = Array.from(files).filter((f) => f.type.startsWith('image/'));
+    if (imageFiles.length === 0) return;
+
+    const uploadedUrls: string[] = [];
+    for (const file of imageFiles) {
+      let imageUrl = '';
+      const uploadResult = await mysqlService.uploadImage(file);
+      if (uploadResult.ok && uploadResult.data?.url) {
+        imageUrl = uploadResult.data.url;
+      } else {
+        const reader = new FileReader();
+        const dataUrl = await new Promise<string>((resolve) => {
+          reader.onload = (e) => resolve(e.target?.result as string);
+          reader.readAsDataURL(file);
+        });
+        imageUrl = dataUrl;
+      }
+      uploadedUrls.push(imageUrl);
+    }
+
+    const updatedImages = [...(editing.images || []), ...uploadedUrls];
+    setEditing({ ...editing, images: updatedImages });
+  }, [editing]);
+
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(true);
@@ -81,6 +112,23 @@ export default function AdminBlog() {
     e.preventDefault();
     setIsDragging(false);
     processFiles(e.dataTransfer.files);
+  };
+
+  const handleImagesDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsImagesDragging(true);
+  };
+
+  const handleImagesDragLeave = (e: React.DragEvent) => {
+    if (!imagesDropZoneRef.current?.contains(e.relatedTarget as Node)) {
+      setIsImagesDragging(false);
+    }
+  };
+
+  const handleImagesDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsImagesDragging(false);
+    processAdditionalImages(e.dataTransfer.files);
   };
 
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -154,9 +202,48 @@ export default function AdminBlog() {
                 <input
                   type="text"
                   value={editing.author}
-                  onChange={(e) => setEditing({ ...editing, author: e.target.value })}
+                  onChange={(e) => setEditing({ ...editing, author: e.target.value, authorId: '' })}
                   className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-orange-400"
+                  placeholder="Author name"
                 />
+                {authors.length > 0 && (
+                  <div className="mt-3 space-y-3">
+                    <label className="block text-sm font-semibold text-gray-700">Or select a saved author</label>
+                    <select
+                      value={editing.authorId || ''}
+                      onChange={(e) => {
+                        const authorId = e.target.value;
+                        const selectedAuthor = authors.find((a) => a.id === authorId);
+                        setEditing({
+                          ...editing,
+                          authorId,
+                          author: selectedAuthor?.name || '',
+                        });
+                      }}
+                      className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-orange-400"
+                    >
+                      <option value="">-- Select a saved author --</option>
+                      {authors.map((author) => (
+                        <option key={author.id} value={author.id}>
+                          {author.name}
+                        </option>
+                      ))}
+                    </select>
+                    {editing.authorId && (
+                      <div className="flex items-center gap-3 text-sm text-gray-700">
+                        <img
+                          src={authors.find((a) => a.id === editing.authorId)?.imageUrl || ''}
+                          alt="Author avatar"
+                          className="w-10 h-10 rounded-full object-cover border border-gray-200"
+                        />
+                        <div>
+                          <p className="font-semibold">{authors.find((a) => a.id === editing.authorId)?.name}</p>
+                          <p className="text-xs text-gray-500">Selected saved author</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">Cover Image</label>
@@ -165,7 +252,6 @@ export default function AdminBlog() {
                   onDragOver={handleDragOver}
                   onDragLeave={handleDragLeave}
                   onDrop={handleDrop}
-                  onClick={() => fileInputRef.current?.click()}
                   className={`border-2 border-dashed rounded-lg p-6 flex flex-col items-center justify-center gap-2 cursor-pointer transition-all ${
                     isDragging
                       ? 'border-orange-500 bg-orange-50 scale-[1.01]'
@@ -208,13 +294,44 @@ export default function AdminBlog() {
                 </div>
                 <div className="space-y-2">
                   <label className="block text-sm font-semibold text-gray-700">Additional Image URLs</label>
+                  <div
+                    ref={imagesDropZoneRef}
+                    onDragOver={handleImagesDragOver}
+                    onDragLeave={handleImagesDragLeave}
+                    onDrop={handleImagesDrop}
+                    className={`border-2 border-dashed rounded-lg p-4 flex flex-col items-center justify-center gap-2 cursor-pointer transition-all ${
+                      isImagesDragging
+                        ? 'border-orange-500 bg-orange-50 scale-[1.01]'
+                        : 'border-gray-300 bg-gray-50 hover:border-orange-400 hover:bg-orange-50/40'
+                    }`}
+                  >
+                    <span className="text-xs text-gray-600">
+                      {isImagesDragging ? '📷 Drop images here!' : '📁 Drag & Drop images here or paste URLs below'}
+                    </span>
+                  </div>
                   <textarea
                     value={(editing.images || []).join('\n')}
                     onChange={(e) => setEditing({ ...editing, images: e.target.value.split('\n').filter(Boolean) })}
                     rows={3}
                     className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-orange-400 resize-none"
-                    placeholder="One image URL per line"
+                    placeholder="One image URL per line (or drag & drop above)"
                   />
+                  {editing.images && editing.images.length > 0 && (
+                    <div className="grid grid-cols-3 gap-2">
+                      {editing.images.map((img, idx) => (
+                        <div key={idx} className="relative group">
+                          <img src={img} alt={`Additional ${idx}`} className="w-full h-20 object-cover rounded" onError={(e) => (e.currentTarget.style.display = 'none')} />
+                          <button
+                            type="button"
+                            onClick={() => setEditing({ ...editing, images: editing.images?.filter((_, i) => i !== idx) || [] })}
+                            className="absolute top-1 right-1 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-xs"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
               <div>
@@ -230,15 +347,13 @@ export default function AdminBlog() {
               </div>
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">Full Content *</label>
-                <textarea
+                <RichTextEditor
                   value={editing.content}
-                  onChange={(e) => setEditing({ ...editing, content: e.target.value })}
-                  rows={14}
+                  onChange={(value) => setEditing({ ...editing, content: value })}
                   maxLength={2000}
-                  className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-orange-400 resize-none"
                   placeholder="Full blog post content... Write as much detail as needed for the article."
+                  rows={14}
                 />
-                <p className="text-xs text-gray-400 mt-1">{editing.content.length}/2000</p>
               </div>
               <div className="flex gap-3 pt-2">
                 <button

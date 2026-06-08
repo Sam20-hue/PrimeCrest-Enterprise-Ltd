@@ -11,7 +11,7 @@ export default function Footer() {
   const [feedback, setFeedback] = useState('');
   const [policyModal, setPolicyModal] = useState<'privacy' | 'terms' | null>(null);
 
-  const handleSubscribe = (e: React.FormEvent) => {
+  const handleSubscribe = async (e: React.FormEvent) => {
     e.preventDefault();
     const normalized = email.trim().toLowerCase();
     if (!normalized || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)) {
@@ -22,7 +22,7 @@ export default function Footer() {
       setFeedback('This email is already subscribed.');
       return;
     }
-    const added = addSubscriber(normalized);
+    const added = await addSubscriber(normalized);
     if (!added) {
       setFeedback('Unable to subscribe with this email.');
       return;

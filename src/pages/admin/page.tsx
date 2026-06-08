@@ -7,16 +7,18 @@ import AdminBlog from './components/AdminBlog';
 import AdminTeam from './components/AdminTeam';
 import AdminContacts from './components/AdminContacts';
 import AdminSubscribers from './components/AdminSubscribers';
+import AdminAuthors from './components/AdminAuthors';
 import { useSiteData } from '../../context/SiteDataContext';
 import { mysqlService } from '../../services/mysqlService';
 
-type Tab = 'settings' | 'services' | 'gallery' | 'blog' | 'team' | 'contacts' | 'subscribers';
+type Tab = 'settings' | 'services' | 'gallery' | 'blog' | 'authors' | 'team' | 'contacts' | 'subscribers';
 
 const tabs: { id: Tab; label: string; icon: string }[] = [
   { id: 'settings', label: 'Settings', icon: 'ri-settings-3-line' },
   { id: 'services', label: 'Services', icon: 'ri-tools-line' },
   { id: 'gallery', label: 'Gallery', icon: 'ri-image-line' },
   { id: 'blog', label: 'Blog', icon: 'ri-article-line' },
+    { id: 'authors', label: 'Authors', icon: 'ri-user-line' },
   { id: 'team', label: 'Team', icon: 'ri-team-line' },
   { id: 'contacts', label: 'Contacts', icon: 'ri-mail-line' },
   { id: 'subscribers', label: 'Subscribers', icon: 'ri-mail-send-line' },
@@ -29,6 +31,7 @@ export default function AdminPage() {
   });
   const [activeTab, setActiveTab] = useState<Tab>('settings');
 
+  const { authors } = useSiteData();
   // Load contacts when admin page loads
   useEffect(() => {
     if (isLoggedIn && contacts.length === 0) {
@@ -61,6 +64,7 @@ export default function AdminPage() {
     services: services.length,
     gallery: gallery.length,
     blog: blogPosts.length,
+      authors: authors.length,
     team: team.length,
     contacts: contacts.length,
     subscribers: subscribers.length,
@@ -149,6 +153,7 @@ export default function AdminPage() {
           {activeTab === 'services' && <AdminServices />}
           {activeTab === 'gallery' && <AdminGallery />}
           {activeTab === 'blog' && <AdminBlog />}
+                    {activeTab === 'authors' && <AdminAuthors />}
           {activeTab === 'team' && <AdminTeam />}
           {activeTab === 'contacts' && <AdminContacts />}
           {activeTab === 'subscribers' && <AdminSubscribers />}

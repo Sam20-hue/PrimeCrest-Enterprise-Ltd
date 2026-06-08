@@ -72,6 +72,7 @@ export interface BlogPost {
   imageUrl: string;
   images?: string[];
   author: string;
+  authorId?: string;
   published: boolean;
 }
 
@@ -89,6 +90,13 @@ export interface TeamMember {
   name: string;
   role: string;
   imageUrl: string;
+}
+
+export interface Author {
+  id: string;
+  name: string;
+  imageUrl: string;
+  bio?: string;
 }
 
 export interface Contact {
@@ -111,7 +119,7 @@ interface SiteDataContextType {
   contacts: Contact[];
   subscribers: string[];
   updateSettings: (settings: SiteSettings) => void;
-  addSubscriber: (email: string) => boolean;
+  addSubscriber: (email: string) => Promise<boolean>;
   setServices: (services: Service[]) => void;
   setGallery: (gallery: GalleryItem[]) => void;
   setBlogPosts: (posts: BlogPost[]) => void;
@@ -119,6 +127,8 @@ interface SiteDataContextType {
   setTeam: (team: TeamMember[]) => void;
   setContacts: (contacts: Contact[]) => void;
   setSubscribers: (emails: string[]) => void;
+    authors: Author[];
+    setAuthors: (authors: Author[]) => void;
   language: Lang;
   setLanguage: (lang: Lang) => void;
 }
@@ -203,6 +213,7 @@ export function SiteDataProvider({ children }: { children: ReactNode }) {
     const validLangs: Lang[] = ['en', 'fr', 'es', 'ar', 'de', 'pt'];
     return validLangs.includes(stored) ? stored : 'en';
   });
+  const [authors, setAuthorsState] = useState<Author[]>(() => loadFromStorage('pc_authors', []));
 
   const syncToApi = async (newSettings: SiteSettings, newServices: Service[], newGallery: GalleryItem[], newBlog: BlogPost[], newTestimonials: Testimonial[], newTeam: TeamMember[]) => {
     try {
@@ -226,7 +237,7 @@ export function SiteDataProvider({ children }: { children: ReactNode }) {
     syncToApi(s, services, gallery, blogPosts, testimonials, team);
   };
 
-  const addSubscriber = (email: string): boolean => {
+  const addSubscriber = async (email: string): Promise<boolean> => {
     const normalized = email.trim().toLowerCase();
     if (!normalized || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)) {
       return false;
@@ -237,6 +248,16 @@ export function SiteDataProvider({ children }: { children: ReactNode }) {
     const updated = [normalized, ...subscribers];
     setSubscribersState(updated);
     localStorage.setItem('pc_subscribers', JSON.stringify(updated));
+
+    try {
+      const result = await mysqlService.subscribeEmail({ email: normalized });
+      if (!result.ok) {
+        console.warn('[SiteData] subscribeEmail failed:', result.error);
+      }
+    } catch (err) {
+      console.warn('[SiteData] subscribeEmail threw:', err);
+    }
+
     return true;
   };
 
@@ -277,6 +298,11 @@ export function SiteDataProvider({ children }: { children: ReactNode }) {
   const setSubscribers = (emails: string[]) => {
     setSubscribersState(emails);
     localStorage.setItem('pc_subscribers', JSON.stringify(emails));
+  };
+
+  const setAuthors = (a: Author[]) => {
+    setAuthorsState(a);
+    localStorage.setItem('pc_authors', JSON.stringify(a));
   };
 
   const setLanguage = (lang: Lang) => {
@@ -352,6 +378,15 @@ export function SiteDataProvider({ children }: { children: ReactNode }) {
           setTeamState(teamRes.data);
           localStorage.setItem('pc_team', JSON.stringify(teamRes.data));
         }
+
+        const subscribersRes = await mysqlService.getSubscribers();
+        if (subscribersRes.ok && Array.isArray(subscribersRes.data)) {
+          const remoteSubscribers = subscribersRes.data.filter((item) => typeof item === 'string');
+          if (remoteSubscribers.length > 0) {
+            setSubscribersState(remoteSubscribers);
+            localStorage.setItem('pc_subscribers', JSON.stringify(remoteSubscribers));
+          }
+        }
       } catch {
         // ignore backend load failures and continue with local state
       }
@@ -382,6 +417,8 @@ export function SiteDataProvider({ children }: { children: ReactNode }) {
         setSubscribers,
         language,
         setLanguage,
+        authors,
+        setAuthors,
       }}
     >
       {children}

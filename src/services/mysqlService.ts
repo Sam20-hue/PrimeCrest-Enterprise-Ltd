@@ -154,6 +154,11 @@ export const mysqlService = {
   updateBlogPost: (id: string, data: unknown) => request('PUT', `/api/blog/${id}`, data),
   deleteBlogPost: (id: string) => request('DELETE', `/api/blog/${id}`),
 
+  // -- Subscribers --------------------------------------------------------
+  getSubscribers: () => request<string[]>('GET', '/api/subscribers'),
+  subscribeEmail: (data: unknown) => request('POST', '/api/subscribers', data),
+  deleteSubscriber: (email: string) => request('DELETE', `/api/subscribers?email=${encodeURIComponent(email)}`),
+
   // -- Team --------------------------------------------------------------
   getTeam: () => request('GET', '/api/team'),
 

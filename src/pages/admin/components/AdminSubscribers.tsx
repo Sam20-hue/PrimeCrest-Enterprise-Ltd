@@ -1,12 +1,28 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useSiteData } from '../../../context/SiteDataContext';
+import { mysqlService } from '../../../services/mysqlService';
 
 export default function AdminSubscribers() {
   const { subscribers, setSubscribers } = useSiteData();
   const [deletedEmail, setDeletedEmail] = useState<string | null>(null);
 
-  const handleDelete = (email: string) => {
+  useEffect(() => {
+    const loadSubscribers = async () => {
+      const result = await mysqlService.getSubscribers();
+      if (result.ok && Array.isArray(result.data)) {
+        setSubscribers(result.data.filter((item) => typeof item === 'string'));
+      }
+    };
+    loadSubscribers();
+  }, [setSubscribers]);
+
+  const handleDelete = async (email: string) => {
     if (!window.confirm(`Remove ${email} from the subscriber list?`)) return;
+    try {
+      await mysqlService.deleteSubscriber(email);
+    } catch {
+      // ignore deletion failure and still update local view
+    }
     setSubscribers(subscribers.filter((item) => item !== email));
     setDeletedEmail(email);
     setTimeout(() => setDeletedEmail(null), 2500);

@@ -2,13 +2,20 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useSiteData } from '../../context/SiteDataContext';
 import { translations } from '../../i18n/translations';
 
+const formatDate = (value: string) => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+};
+
 export default function BlogPostPage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { blogPosts, language } = useSiteData();
+  const { blogPosts, authors, language } = useSiteData();
   const t = translations[language].blog;
 
   const post = blogPosts.find((item) => item.id === id && item.published);
+  const author = post && post.authorId ? authors.find((a) => a.id === post.authorId) : null;
 
   if (!post) {
     return (
@@ -49,7 +56,7 @@ export default function BlogPostPage() {
               </span>
               <h1 className="text-4xl md:text-5xl font-black text-gray-900 leading-tight">{post.title}</h1>
               <p className="text-sm text-gray-500 mt-4">
-                {post.date} · {post.author}
+                {formatDate(post.date)} · {author?.name || post.author || 'Unknown author'}
               </p>
             </div>
           </div>
@@ -77,7 +84,16 @@ export default function BlogPostPage() {
               <div className="rounded-2xl overflow-hidden border border-gray-200 bg-white">
                 <div className="p-4">
                   <p className="text-xs uppercase tracking-[0.2em] text-gray-500">Author</p>
-                  <p className="mt-2 text-base font-semibold text-gray-900">{post.author}</p>
+                  <div className="flex items-center gap-3 mt-2">
+                {author?.imageUrl && (
+                  <img
+                    src={author.imageUrl}
+                    alt={author.name}
+                    className="w-12 h-12 rounded-full object-cover border border-gray-200"
+                  />
+                )}
+                <p className="text-base font-semibold text-gray-900">{author?.name || post.author || 'Unknown author'}</p>
+              </div>
                 </div>
               </div>
             </div>
