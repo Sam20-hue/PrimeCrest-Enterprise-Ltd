@@ -41,14 +41,14 @@ export default function BlogPostPage() {
 
   return (
     <main className="pt-24 min-h-screen pb-20 bg-white">
-      <section className="relative overflow-hidden">
-        <div className="h-[420px] w-full relative">
+      <section className="relative overflow-hidden bg-gradient-to-b from-gray-900 to-gray-800">
+        <div className="h-[500px] w-full relative flex items-center justify-center">
           <img
             src={post.imageUrl}
             alt={post.title}
-            className="w-full h-full object-cover object-center"
+            className="w-full h-full object-contain object-center"
           />
-          <div className="absolute inset-0 bg-black/40" />
+          <div className="absolute inset-0 bg-black/30" />
           <div className="absolute inset-0 flex items-end p-6 md:p-10">
             <div className="max-w-3xl bg-white/90 backdrop-blur-xl rounded-3xl p-6 md:p-8 shadow-xl">
               <span className="text-xs font-semibold uppercase tracking-[0.2em] text-orange-700 bg-orange-100 px-3 py-1 rounded-full inline-block mb-3">

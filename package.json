@@ -11,7 +11,7 @@
     "start": "npx serve -s out -l 3000",
     "lint": "eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "type-check": "tsc --noEmit --project tsconfig.app.json",
-    "postinstall": "find node_modules -type f -name esbuild -o -name vite | xargs chmod +x 2>/dev/null || true"
+    "postinstall": "node -e \"/* skip postinstall on Windows */\""
   },
   "dependencies": {
     "@stripe/react-stripe-js": "4.0.2",
@@ -45,7 +45,9 @@
     "unplugin-auto-import": "^19.3.0",
     "vite": "^7.0.3"
   },
-  "overrides": {
-    "@rollup/rollup": "npm:@rollup/rollup-linux-x64-gnu"
+  "optionalDependencies": {
+    "@rollup/rollup-win32-x64-msvc": "^4.61.1",
+    "@rollup/wasm-node": "^4.61.1",
+    "@swc/core-win32-x64-msvc": "https://registry.npmjs.org/@swc/core-win32-x64-msvc/-/core-win32-x64-msvc-1.15.40.tgz"
   }
 }

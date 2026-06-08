@@ -26,6 +26,7 @@ export default function AdminBlog() {
   const [isDragging, setIsDragging] = useState(false);
   const [isImagesDragging, setIsImagesDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const imagesFileInputRef = useRef<HTMLInputElement>(null);
   const dropZoneRef = useRef<HTMLDivElement>(null);
   const imagesDropZoneRef = useRef<HTMLDivElement>(null);
 
@@ -136,11 +137,17 @@ export default function AdminBlog() {
     e.target.value = '';
   };
 
+  const handleImagesFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    processAdditionalImages(e.target.files);
+    e.target.value = '';
+  };
+
   return (
     <div>
       <div className="flex items-center justify-between mb-8">
         <h2 className="text-2xl font-black text-gray-900">Manage Blog</h2>
         <button
+          type="button"
           onClick={handleNew}
           className="inline-flex items-center gap-2 px-5 py-2.5 bg-orange-600 text-white font-semibold rounded-lg hover:bg-orange-700 cursor-pointer whitespace-nowrap"
         >
@@ -156,13 +163,13 @@ export default function AdminBlog() {
 
       {/* Form Modal */}
       {showForm && editing && (
-        <div className="fixed inset-0 z-50 bg-black/60 flex items-start justify-center p-4 overflow-y-auto">
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-start justify-center p-4 overflow-y-auto" onClick={() => setShowForm(false)}>
           <div className="bg-white rounded-2xl max-w-2xl w-full mt-8 mb-8 p-8" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-xl font-black text-gray-900">
                 {blogPosts.find((p) => p.id === editing.id) ? 'Edit Post' : 'New Blog Post'}
               </h3>
-              <button onClick={() => setShowForm(false)} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 cursor-pointer">
+              <button type="button" onClick={() => setShowForm(false)} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 cursor-pointer">
                 <i className="ri-close-line text-gray-500" />
               </button>
             </div>
@@ -252,6 +259,7 @@ export default function AdminBlog() {
                   onDragOver={handleDragOver}
                   onDragLeave={handleDragLeave}
                   onDrop={handleDrop}
+                  onClick={() => fileInputRef.current?.click()}
                   className={`border-2 border-dashed rounded-lg p-6 flex flex-col items-center justify-center gap-2 cursor-pointer transition-all ${
                     isDragging
                       ? 'border-orange-500 bg-orange-50 scale-[1.01]'
@@ -299,6 +307,7 @@ export default function AdminBlog() {
                     onDragOver={handleImagesDragOver}
                     onDragLeave={handleImagesDragLeave}
                     onDrop={handleImagesDrop}
+                    onClick={() => imagesFileInputRef.current?.click()}
                     className={`border-2 border-dashed rounded-lg p-4 flex flex-col items-center justify-center gap-2 cursor-pointer transition-all ${
                       isImagesDragging
                         ? 'border-orange-500 bg-orange-50 scale-[1.01]'
@@ -308,6 +317,14 @@ export default function AdminBlog() {
                     <span className="text-xs text-gray-600">
                       {isImagesDragging ? '📷 Drop images here!' : '📁 Drag & Drop images here or paste URLs below'}
                     </span>
+                    <input
+                      ref={imagesFileInputRef}
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      className="hidden"
+                      onChange={handleImagesFileInput}
+                    />
                   </div>
                   <textarea
                     value={(editing.images || []).join('\n')}
@@ -357,13 +374,14 @@ export default function AdminBlog() {
               </div>
               <div className="flex gap-3 pt-2">
                 <button
+                  type="button"
                   onClick={handleSave}
                   disabled={!editing.title || !editing.excerpt}
                   className="flex-1 py-3 bg-orange-600 text-white font-bold rounded-lg cursor-pointer disabled:opacity-50"
                 >
                   Save Post
                 </button>
-                <button onClick={() => setShowForm(false)} className="px-6 py-3 border border-gray-200 text-gray-600 font-semibold rounded-lg cursor-pointer">
+                <button type="button" onClick={() => setShowForm(false)} className="px-6 py-3 border border-gray-200 text-gray-600 font-semibold rounded-lg cursor-pointer">
                   Cancel
                 </button>
               </div>
@@ -396,10 +414,10 @@ export default function AdminBlog() {
               <h4 className="font-bold text-gray-900 text-sm line-clamp-1">{post.title}</h4>
             </div>
             <div className="flex gap-2 flex-shrink-0">
-              <button onClick={() => handleEdit(post)} className="px-4 py-2 border border-gray-200 text-gray-600 text-xs font-semibold rounded-lg hover:border-orange-400 hover:text-orange-600 cursor-pointer whitespace-nowrap">
+              <button type="button" onClick={() => handleEdit(post)} className="px-4 py-2 border border-gray-200 text-gray-600 text-xs font-semibold rounded-lg hover:border-orange-400 hover:text-orange-600 cursor-pointer whitespace-nowrap">
                 <i className="ri-edit-line mr-1" />Edit
               </button>
-              <button onClick={() => setDeleteConfirm(post.id)} className="px-4 py-2 border border-red-100 text-red-500 text-xs font-semibold rounded-lg hover:bg-red-50 cursor-pointer whitespace-nowrap">
+              <button type="button" onClick={() => setDeleteConfirm(post.id)} className="px-4 py-2 border border-red-100 text-red-500 text-xs font-semibold rounded-lg hover:bg-red-50 cursor-pointer whitespace-nowrap">
                 <i className="ri-delete-bin-line mr-1" />Delete
               </button>
             </div>
@@ -413,8 +431,8 @@ export default function AdminBlog() {
             <h3 className="font-bold text-gray-900 mb-2">Delete Post?</h3>
             <p className="text-gray-500 text-sm mb-5">This cannot be undone.</p>
             <div className="flex gap-3">
-              <button onClick={() => handleDelete(deleteConfirm)} className="flex-1 py-2.5 bg-red-600 text-white font-bold rounded-lg cursor-pointer">Delete</button>
-              <button onClick={() => setDeleteConfirm(null)} className="flex-1 py-2.5 border border-gray-200 text-gray-600 font-semibold rounded-lg cursor-pointer">Cancel</button>
+              <button type="button" onClick={() => handleDelete(deleteConfirm)} className="flex-1 py-2.5 bg-red-600 text-white font-bold rounded-lg cursor-pointer">Delete</button>
+              <button type="button" onClick={() => setDeleteConfirm(null)} className="flex-1 py-2.5 border border-gray-200 text-gray-600 font-semibold rounded-lg cursor-pointer">Cancel</button>
             </div>
           </div>
         </div>

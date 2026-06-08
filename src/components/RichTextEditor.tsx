@@ -11,20 +11,36 @@ interface RichTextEditorProps {
 export default function RichTextEditor({ value, onChange, maxLength = 2000, placeholder, rows = 14 }: RichTextEditorProps) {
   const editorRef = useRef<HTMLDivElement>(null);
   const [isFocused, setIsFocused] = useState(false);
+  const lastValueRef = useRef(value);
 
   useEffect(() => {
-    if (editorRef.current && editorRef.current.innerText !== value) {
-      editorRef.current.innerHTML = value.replace(/\n/g, '<br>');
+    if (editorRef.current) {
+      const currentText = editorRef.current.innerText;
+      if (currentText !== value && !isFocused) {
+        editorRef.current.innerHTML = value
+          .split('\n')
+          .map(line => line === '' ? '<br>' : line)
+          .join('');
+      }
     }
-  }, [value]);
+  }, [value, isFocused]);
 
   const handleInput = () => {
     if (editorRef.current) {
       let text = editorRef.current.innerText;
       if (text.length > maxLength) {
         text = text.substring(0, maxLength);
+        editorRef.current.innerText = text;
       }
+      lastValueRef.current = text;
       onChange(text);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === 'Enter' && e.ctrlKey === false && e.shiftKey === false) {
+      // Allow Enter for new lines but don't submit
+      return;
     }
   };
 
@@ -120,19 +136,28 @@ export default function RichTextEditor({ value, onChange, maxLength = 2000, plac
           <i className="ri-font-color text-gray-700" />
         </button>
       </div>
-      <div
-        ref={editorRef}
-        contentEditable
-        onInput={handleInput}
-        onFocus={() => setIsFocused(true)}
-        onBlur={() => setIsFocused(false)}
-        className={`w-full px-4 py-3 border rounded-b-lg text-sm focus:outline-none resize-none overflow-y-auto transition-colors ${
-          isFocused ? 'border-orange-400 bg-white' : 'border-gray-200 bg-gray-50'
-        }`}
-        style={{ minHeight: `${rows * 1.5}em` }}
-        suppressContentEditableWarning
-      >
-        {placeholder && !value && <span className="text-gray-400">{placeholder}</span>}
+      <div style={{ position: 'relative' }}>
+        <div
+          ref={editorRef}
+          contentEditable
+          suppressContentEditableWarning
+          onInput={handleInput}
+          onKeyDown={handleKeyDown}
+          onFocus={() => setIsFocused(true)}
+          onBlur={() => setIsFocused(false)}
+          className={`w-full px-4 py-3 border rounded-b-lg text-sm focus:outline-none resize-none overflow-y-auto transition-colors ${
+            isFocused ? 'border-orange-400 bg-white' : 'border-gray-200 bg-gray-50'
+          }`}
+          style={{ minHeight: `${rows * 1.5}em` }}
+        />
+        {!value && !isFocused && (
+          <div 
+            className="absolute top-3 left-4 text-gray-400 pointer-events-none text-sm"
+            style={{ pointerEvents: 'none' }}
+          >
+            {placeholder}
+          </div>
+        )}
       </div>
       <p className="text-xs text-gray-400">{value.length}/{maxLength}</p>
     </div>

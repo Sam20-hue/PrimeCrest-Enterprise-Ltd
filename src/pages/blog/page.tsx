@@ -45,7 +45,7 @@ export default function BlogPage() {
 
       {/* Filter */}
       <section className="py-8 bg-white border-b border-gray-100">
-        <div className="max-w-7xl mx-auto px-6 flex flex-wrap gap-3 mb-4">
+        <div className="max-w-7xl mx-auto px-6 flex flex-wrap gap-3">
           {categories.map((cat) => (
             <button
               key={cat}
@@ -57,21 +57,6 @@ export default function BlogPage() {
               }`}
             >
               {cat}
-            </button>
-          ))}
-        </div>
-        <div className="max-w-7xl mx-auto px-6 flex flex-wrap gap-3">
-          {authorNames.map((author) => (
-            <button
-              key={author}
-              onClick={() => setActiveAuthor(author)}
-              className={`px-4 py-2 text-sm rounded-full font-medium transition-all cursor-pointer whitespace-nowrap ${
-                activeAuthor === author
-                  ? 'bg-orange-600 text-white'
-                  : 'bg-gray-100 text-gray-600 hover:bg-orange-100 hover:text-orange-700'
-              }`}
-            >
-              {author}
             </button>
           ))}
         </div>
