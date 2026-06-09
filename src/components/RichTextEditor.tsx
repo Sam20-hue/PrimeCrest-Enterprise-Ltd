@@ -8,50 +8,58 @@ interface RichTextEditorProps {
   rows?: number;
 }
 
-export default function RichTextEditor({ value, onChange, maxLength = 2000, placeholder, rows = 14 }: RichTextEditorProps) {
+const normalizeEditorValue = (value: string) => {
+  if (!value) return '';
+  if (/<[a-z][\s\S]*>/i.test(value)) return value;
+  return value.replace(/\n/g, '<br>');
+};
+
+export default function RichTextEditor({ value, onChange, maxLength = 4000, placeholder, rows = 14 }: RichTextEditorProps) {
   const editorRef = useRef<HTMLDivElement>(null);
   const [isFocused, setIsFocused] = useState(false);
   const lastValueRef = useRef(value);
 
   useEffect(() => {
-    if (editorRef.current) {
-      const currentText = editorRef.current.innerText;
-      if (currentText !== value && !isFocused) {
-        editorRef.current.innerHTML = value
-          .split('\n')
-          .map(line => line === '' ? '<br>' : line)
-          .join('');
-      }
+    if (!editorRef.current) return;
+    const nextValue = normalizeEditorValue(value);
+    const currentValue = editorRef.current.innerHTML;
+    if (currentValue !== nextValue && !isFocused) {
+      editorRef.current.innerHTML = nextValue;
     }
   }, [value, isFocused]);
 
   const handleInput = () => {
-    if (editorRef.current) {
-      let text = editorRef.current.innerText;
-      if (text.length > maxLength) {
-        text = text.substring(0, maxLength);
-        editorRef.current.innerText = text;
-      }
-      lastValueRef.current = text;
-      onChange(text);
+    if (!editorRef.current) return;
+
+    const nextValue = editorRef.current.innerHTML;
+    if (nextValue.length > maxLength) {
+      editorRef.current.innerHTML = nextValue.slice(0, maxLength);
     }
+
+    lastValueRef.current = editorRef.current.innerHTML;
+    onChange(editorRef.current.innerHTML);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (e.key === 'Enter' && e.ctrlKey === false && e.shiftKey === false) {
-      // Allow Enter for new lines but don't submit
       return;
     }
   };
 
   const executeCommand = (command: string, value?: string) => {
-    document.execCommand(command, false, value);
     editorRef.current?.focus();
+    document.execCommand(command, false, value);
   };
 
   const applyFormat = (command: string, value?: string) => {
     executeCommand(command, value);
-    handleInput();
+    requestAnimationFrame(() => handleInput());
+  };
+
+  const handleColorChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const color = event.target.value;
+    applyFormat('foreColor', color);
+    event.target.value = color;
   };
 
   return (
@@ -124,17 +132,18 @@ export default function RichTextEditor({ value, onChange, maxLength = 2000, plac
           P
         </button>
         <div className="border-l border-gray-300 mx-1" />
-        <button
-          type="button"
-          onClick={() => {
-            const color = prompt('Enter color (hex or name):', '#ff6b35');
-            if (color) applyFormat('foreColor', color);
-          }}
+        <label
           title="Text Color"
-          className="p-2 rounded hover:bg-gray-200 transition-colors"
+          className="flex h-9 w-9 cursor-pointer items-center justify-center rounded hover:bg-gray-200 transition-colors"
         >
           <i className="ri-font-color text-gray-700" />
-        </button>
+          <input
+            type="color"
+            defaultValue="#ff6b35"
+            onChange={handleColorChange}
+            className="absolute h-0 w-0 opacity-0"
+          />
+        </label>
       </div>
       <div style={{ position: 'relative' }}>
         <div
@@ -148,7 +157,7 @@ export default function RichTextEditor({ value, onChange, maxLength = 2000, plac
           className={`w-full px-4 py-3 border rounded-b-lg text-sm focus:outline-none resize-none overflow-y-auto transition-colors ${
             isFocused ? 'border-orange-400 bg-white' : 'border-gray-200 bg-gray-50'
           }`}
-          style={{ minHeight: `${rows * 1.5}em` }}
+          style={{ minHeight: `${rows * 1.5}em`, maxHeight: '640px' }}
         />
         {!value && !isFocused && (
           <div 

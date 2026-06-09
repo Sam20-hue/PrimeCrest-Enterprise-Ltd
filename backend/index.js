@@ -119,7 +119,12 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: 'No file uploaded' });
   }
-  const url = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`;
+  const forwardedProto = req.get('x-forwarded-proto');
+  const forwardedHost = req.get('x-forwarded-host');
+  const protocol = forwardedProto ? forwardedProto.split(',')[0].trim() : req.protocol;
+  const host = forwardedHost ? forwardedHost.split(',')[0].trim() : req.get('host');
+  const baseUrl = process.env.PUBLIC_BASE_URL || (host ? `${protocol}://${host}` : '');
+  const url = baseUrl ? `${baseUrl}/uploads/${req.file.filename}` : `/uploads/${req.file.filename}`;
   res.json({ url });
 });
 

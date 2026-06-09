@@ -41,6 +41,7 @@
  */
 
 import type { Contact } from '../context/SiteDataContext';
+import { applyWatermarkToImage } from '../utils/imageUpload';
 
 const getDefaultApiUrl = (): string => {
   if (typeof window === 'undefined') return 'http://localhost:3002';
@@ -194,8 +195,9 @@ export const mysqlService = {
       ? baseUrl.replace(/\/api$/, '') + '/api/upload'
       : `${baseUrl}/api/upload`;
     try {
+      const uploadFile = await applyWatermarkToImage(file);
       const form = new FormData();
-      form.append('file', file);
+      form.append('file', uploadFile);
       const res = await fetch(uploadUrl, {
         method: 'POST',
         body: form,

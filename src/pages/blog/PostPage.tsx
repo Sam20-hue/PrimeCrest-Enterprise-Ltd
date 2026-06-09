@@ -66,7 +66,10 @@ export default function BlogPostPage() {
       <section className="max-w-5xl mx-auto px-6 py-16 space-y-10">
         <div className="grid gap-6 lg:grid-cols-[2fr_1fr]">
           <div className="space-y-6 text-gray-700 leading-relaxed text-base">
-            <div className="prose prose-lg prose-orange max-w-none whitespace-pre-line">{post.content}</div>
+            <article
+              className="prose prose-lg prose-orange max-w-none"
+              dangerouslySetInnerHTML={{ __html: post.content || '<p>No content available.</p>' }}
+            />
           </div>
 
           <aside className="space-y-6 p-6 bg-gray-50 rounded-3xl border border-gray-100">

@@ -13,6 +13,7 @@ const buildServiceDetailUrl = (serviceId: string) => {
 export default function ServicesPage() {
   const { services, settings, language } = useSiteData();
   const t = translations[language].services;
+  const phoneNumber = settings.phone?.replace(/[^+\d]/g, '') || '';
   const [selected, setSelected] = useState<string | null>(null);
   const [modalService, setModalService] = useState<any>(null);
   const [filterTitle, setFilterTitle] = useState('');
@@ -233,7 +234,7 @@ export default function ServicesPage() {
                   </p>
                   <div className="flex gap-3 flex-wrap">
                     <a
-                      href="tel:+254700000000"
+                      href={phoneNumber ? `tel:${phoneNumber}` : '#'}
                       className="inline-flex items-center gap-2 px-4 py-2 bg-orange-600 text-white text-sm rounded-lg cursor-pointer whitespace-nowrap"
                     >
                       <i className="ri-phone-line" /> Call Now

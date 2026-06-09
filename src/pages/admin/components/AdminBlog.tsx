@@ -367,7 +367,7 @@ export default function AdminBlog() {
                 <RichTextEditor
                   value={editing.content}
                   onChange={(value) => setEditing({ ...editing, content: value })}
-                  maxLength={2000}
+                  maxLength={4000}
                   placeholder="Full blog post content... Write as much detail as needed for the article."
                   rows={14}
                 />

@@ -21,6 +21,7 @@ export default function AdminServices() {
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const [newServiceTitle, setNewServiceTitle] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const galleryFileInputRef = useRef<HTMLInputElement>(null);
   const dropZoneRef = useRef<HTMLDivElement>(null);
@@ -399,8 +400,35 @@ export default function AdminServices() {
           <p className="text-xs text-gray-500">Manage quick titles for the Add Service form</p>
         </div>
         <div className="flex items-center gap-3 mb-3">
-          <input id="managerNewTitle" placeholder="New title e.g. Vault Engineering" className="px-3 py-2 border border-gray-200 rounded-lg text-sm flex-1" />
-          <button type="button" onClick={() => { const el = document.getElementById('managerNewTitle') as HTMLInputElement | null; const val = el?.value?.trim(); if (val) { addServiceTitle(val); if (el) el.value = ''; } }} className="px-3 py-2 bg-orange-600 text-white rounded-lg text-sm">Add Title</button>
+          <input
+            value={newServiceTitle}
+            onChange={(e) => setNewServiceTitle(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                const val = newServiceTitle.trim();
+                if (val) {
+                  addServiceTitle(val);
+                  setNewServiceTitle('');
+                }
+              }
+            }}
+            placeholder="New title e.g. Vault Engineering"
+            className="px-3 py-2 border border-gray-200 rounded-lg text-sm flex-1"
+          />
+          <button
+            type="button"
+            onClick={() => {
+              const val = newServiceTitle.trim();
+              if (val) {
+                addServiceTitle(val);
+                setNewServiceTitle('');
+              }
+            }}
+            className="px-3 py-2 bg-orange-600 text-white rounded-lg text-sm"
+          >
+            Add Title
+          </button>
         </div>
         <div className="flex flex-wrap gap-2">
           {serviceTitleOptions.map((t) => (
