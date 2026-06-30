@@ -17,10 +17,26 @@ export default function BlogPage() {
 
   const publishedPosts = blogPosts.filter((post) => post.published);
   const categories = ['All', ...Array.from(new Set(publishedPosts.map((p) => p.category)))];
-  const authorNames = ['All', ...Array.from(new Set(publishedPosts.map((post) => authors.find((a) => a.id === post.authorId)?.name || post.author || 'Unknown author')))];
+  const getAuthorByPost = (post: { author: string; authorId?: string }) => {
+    return (
+      authors.find((a) => a.id === post.authorId) ||
+      authors.find((a) => a.name?.toLowerCase() === post.author?.toLowerCase()) ||
+      null
+    );
+  };
+
+  const authorNames = [
+    'All',
+    ...Array.from(
+      new Set(
+        publishedPosts.map((post) => getAuthorByPost(post)?.name || post.author || 'Unknown author')
+      )
+    ),
+  ];
+
   const filtered = publishedPosts.filter((post) => {
     const matchesCategory = activeCategory === 'All' || post.category === activeCategory;
-    const postAuthorName = authors.find((a) => a.id === post.authorId)?.name || post.author || 'Unknown author';
+    const postAuthorName = getAuthorByPost(post)?.name || post.author || 'Unknown author';
     const matchesAuthor = activeAuthor === 'All' || postAuthorName === activeAuthor;
     return matchesCategory && matchesAuthor;
   });

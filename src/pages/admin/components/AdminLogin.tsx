@@ -63,12 +63,12 @@ export default function AdminLogin({ onLogin }: AdminLoginProps) {
     }
 
     if (email.trim() !== (settings.adminEmail || 'samsonakula3@gmail.com')) {
-      setError('Email does not match the admin account.');
+      setError('Email or password is incorrect.');
       return;
     }
 
     if (password !== (settings.adminPassword || 'admin123')) {
-      setError('Incorrect password. Please try again.');
+      setError('Email or password is incorrect.');
       return;
     }
 

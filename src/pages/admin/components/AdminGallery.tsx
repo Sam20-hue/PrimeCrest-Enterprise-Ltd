@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback } from 'react';
+import RichTextEditor from '../../../components/RichTextEditor';
 import { useSiteData, GalleryItem } from '../../../context/SiteDataContext';
 import { mysqlService } from '../../../services/mysqlService';
 
@@ -243,12 +244,11 @@ export default function AdminGallery() {
 
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">Description</label>
-                <textarea
+                <RichTextEditor
                   value={editing.description}
-                  onChange={(e) => setEditing({ ...editing, description: e.target.value })}
+                  onChange={(v) => setEditing({ ...editing, description: v })}
                   rows={3}
                   maxLength={300}
-                  className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-orange-400 resize-none"
                   placeholder="Brief project description..."
                 />
               </div>

@@ -793,6 +793,119 @@ app.post('/api/seed', async (req, res) => {
   }
 });
 
+// Generate blog post newsletter HTML
+const generateBlogNewsletterHTML = (title, excerpt, date, category, postUrl) => `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f9fafb; line-height: 1.6; color: #333; }
+    .container { max-width: 600px; margin: 0 auto; background-color: white; border-radius: 12px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); overflow: hidden; }
+    .header { background: linear-gradient(135deg, #ea580c 0%, #f97316 100%); color: white; padding: 30px 20px; text-align: center; }
+    .header h1 { margin: 0; font-size: 24px; font-weight: 700; }
+    .content { padding: 40px 30px; }
+    .greeting { font-size: 16px; font-weight: 600; color: #1f2937; margin-bottom: 20px; }
+    .post-card { background: #f9fafb; border-left: 4px solid #ea580c; padding: 20px; margin: 20px 0; border-radius: 8px; }
+    .post-title { font-size: 20px; font-weight: 700; color: #1f2937; margin: 0 0 10px 0; }
+    .post-meta { font-size: 13px; color: #6b7280; margin-bottom: 12px; }
+    .post-excerpt { font-size: 15px; color: #374151; margin-bottom: 15px; }
+    .cta-button { display: inline-block; background-color: #ea580c; color: white; padding: 12px 30px; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 14px; }
+    .footer { background-color: #f9fafb; padding: 30px; text-align: center; border-top: 1px solid #e5e7eb; font-size: 13px; color: #6b7280; }
+    .footer-brand { color: #ea580c; font-weight: 700; font-size: 16px; margin-bottom: 10px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>📰 New Blog Post Published</h1>
+    </div>
+    <div class="content">
+      <p class="greeting">Hello,</p>
+      <p>A new article has been published on the Primecrest Enterprise blog!</p>
+      
+      <div class="post-card">
+        <h2 class="post-title">${title}</h2>
+        <div class="post-meta">
+          <span style="background: #fef08a; padding: 2px 8px; border-radius: 4px; display: inline-block;">${category}</span>
+          <span style="margin-left: 10px;">${date}</span>
+        </div>
+        <p class="post-excerpt">${excerpt}</p>
+        <a href="${postUrl}" class="cta-button">Read Full Article</a>
+      </div>
+      
+      <p style="color: #6b7280; font-size: 13px; margin-top: 30px;">
+        You're receiving this because you subscribed to our newsletter. 
+        <a href="https://primecrestenterprise.com" style="color: #ea580c; text-decoration: none;">Visit our blog</a> for more articles.
+      </p>
+    </div>
+    <div class="footer">
+      <div class="footer-brand">Primecrest Enterprise LTD</div>
+      <p style="margin: 10px 0 0 0;">Professional Security & Digital Solutions</p>
+    </div>
+  </div>
+</body>
+</html>
+`;
+
+// Send blog post newsletter to all subscribers
+app.post('/api/blog/notify-subscribers', async (req, res) => {
+  const { title, excerpt, date, category, postUrl } = req.body;
+
+  if (!title || !excerpt || !postUrl) {
+    return res.status(400).json({ error: 'Title, excerpt, and postUrl are required' });
+  }
+
+  // If SMTP is not configured, skip email sending
+  if (!transporter) {
+    console.warn('Email service is not configured; skipping subscriber notifications');
+    return res.status(200).json({ success: true, message: 'Email service not configured; skipping notifications' });
+  }
+
+  try {
+    // Get all subscribers from localStorage (stored in browser context)
+    // In a real scenario, this would be from a database table
+    // For now we'll try to get from request or return success without sending
+    const subscribers = req.body.subscribers || [];
+    
+    if (!Array.isArray(subscribers) || subscribers.length === 0) {
+      console.log('No subscribers to notify');
+      return res.json({ success: true, message: 'No subscribers to notify' });
+    }
+
+    const htmlContent = generateBlogNewsletterHTML(title, excerpt, date, category, postUrl);
+    let successCount = 0;
+    let failureCount = 0;
+
+    // Send email to each subscriber
+    for (const email of subscribers) {
+      try {
+        await transporter.sendMail({
+          from: senderEmail,
+          to: email,
+          subject: `New Blog Post: ${title}`,
+          html: htmlContent,
+        });
+        successCount++;
+      } catch (err) {
+        console.error(`Failed to send email to ${email}:`, err.message);
+        failureCount++;
+      }
+    }
+
+    res.json({
+      success: true,
+      message: `Newsletter sent to ${successCount} subscribers${failureCount > 0 ? ` (${failureCount} failed)` : ''}`,
+      sent: successCount,
+      failed: failureCount,
+    });
+  } catch (err) {
+    console.error('Blog notification error:', err);
+    res.status(500).json({ error: 'Failed to send blog notifications' });
+  }
+});
+
 const PORT = process.env.PORT || 3002;
 app.listen(PORT, () => {
   console.log(`Primecrest backend listening on http://localhost:${PORT}`);

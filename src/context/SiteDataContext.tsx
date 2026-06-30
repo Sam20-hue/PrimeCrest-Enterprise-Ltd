@@ -134,9 +134,9 @@ interface SiteDataContextType {
 }
 
 const defaultSettings: SiteSettings = {
-  logoUrl: 'https://static.readdy.ai/image/2645941fdc0e183360970fc234d34970/773766d2f6ed38db8ecc7ecb533b68b7.jpeg',
-  logoWidth: 240,
-  logoHeight: 96,
+  logoUrl: '/primecrest-logo.png',
+  logoWidth: 360,
+  logoHeight: 140,
   logoAltText: 'PRIMECREST ENTERPRISE LTD logo',
   logoDisplayMode: 'contain',
   logoContrast: 1.05,

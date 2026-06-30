@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback } from 'react';
+import RichTextEditor from '../../../components/RichTextEditor';
 import { useSiteData, Author } from '../../../context/SiteDataContext';
 import { mysqlService } from '../../../services/mysqlService';
 
@@ -167,12 +168,11 @@ export default function AdminAuthors() {
 
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">Bio</label>
-                <textarea
+                <RichTextEditor
                   value={editing.bio || ''}
-                  onChange={(e) => setEditing({ ...editing, bio: e.target.value })}
+                  onChange={(v) => setEditing({ ...editing, bio: v })}
                   rows={3}
                   maxLength={300}
-                  className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-orange-400 resize-none"
                   placeholder="Short bio about the author..."
                 />
                 <p className="text-xs text-gray-400 mt-1">{(editing.bio || '').length}/300</p>

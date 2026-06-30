@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="300" height="80" viewBox="0 0 300 80">
+  <defs>
+    <style>
+      .text { font-family: Arial, Helvetica, sans-serif; font-size:28px; font-weight:700; fill:#ffffff; }
+    </style>
+  </defs>
+  <rect width="100%" height="100%" fill="none" />
+  <g opacity="0.85">
+    <text x="50%" y="55%" text-anchor="middle" class="text" fill="#ffffff">PRIMECREST</text>
+  </g>
+</svg>

@@ -24,8 +24,8 @@ export default function Navbar({ onLanguageClick }: NavbarProps) {
 
   // On sub-pages always use white bg; on home page transparent until scrolled
   const showWhiteBg = !isHomePage || scrolled;
-  const logoWidth = settings.logoWidth > 0 ? settings.logoWidth : 240;
-  const logoHeight = settings.logoHeight > 0 ? settings.logoHeight : 96;
+  const logoWidth = settings.logoWidth > 0 ? settings.logoWidth : 360;
+  const logoHeight = settings.logoHeight > 0 ? settings.logoHeight : 140;
 
   const isActive = (path: string) => location.pathname === path;
 
@@ -62,16 +62,25 @@ export default function Navbar({ onLanguageClick }: NavbarProps) {
         showWhiteBg ? 'bg-white shadow-sm border-b border-gray-100' : 'bg-transparent'
       }`}
     >
-      <div className="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
-        {/* Logo — borderless, no boundary */}
-        <Link to="/" className="flex items-center cursor-pointer">
+      <div className="max-w-7xl mx-auto px-6 py-2 flex items-center justify-between">
+        {/* Logo — borderless, no boundary, no background */}
+        <Link to="/" className="flex items-center cursor-pointer" style={{ background: 'transparent', padding: 0, margin: 0 }}>
           <img
             src={settings.logoUrl}
             alt={settings.companyName}
-            width={240}
-            height={96}
-            className="h-28 md:h-32 w-auto max-w-[320px] object-contain"
-            style={{ background: 'none', border: 'none', boxShadow: 'none', borderRadius: 0 }}
+            width={logoWidth}
+            height={logoHeight}
+            className="h-32 md:h-36 w-auto max-w-full object-contain"
+            style={{
+              background: 'transparent',
+              border: 'none',
+              boxShadow: 'none',
+              borderRadius: '0px',
+              padding: '0px',
+              margin: '0px',
+              display: 'block',
+              outline: 'none',
+            }}
             onError={(e) => {
               (e.target as HTMLImageElement).src =
                 'https://static.readdy.ai/image/2645941fdc0e183360970fc234d34970/773766d2f6ed38db8ecc7ecb533b68b7.jpeg';

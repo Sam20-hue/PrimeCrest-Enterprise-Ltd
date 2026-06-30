@@ -18,30 +18,74 @@ const emptyPost = (): BlogPost => ({
 });
 
 export default function AdminBlog() {
-  const { blogPosts, setBlogPosts } = useSiteData();
+  const { blogPosts, setBlogPosts, subscribers, authors } = useSiteData();
   const [editing, setEditing] = useState<BlogPost | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [isImagesDragging, setIsImagesDragging] = useState(false);
+  const [notifySubscribers, setNotifySubscribers] = useState(false);
+  const [sending, setSending] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imagesFileInputRef = useRef<HTMLInputElement>(null);
   const dropZoneRef = useRef<HTMLDivElement>(null);
   const imagesDropZoneRef = useRef<HTMLDivElement>(null);
 
-  const { authors } = useSiteData();
-  const handleEdit = (p: BlogPost) => { setEditing({ ...p }); setShowForm(true); };
-  const handleNew = () => { setEditing(emptyPost()); setShowForm(true); };
+  const handleEdit = (p: BlogPost) => { setEditing({ ...p }); setShowForm(true); setNotifySubscribers(false); };
+  const handleNew = () => { setEditing(emptyPost()); setShowForm(true); setNotifySubscribers(false); };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!editing) return;
-    const updated = blogPosts.find((p) => p.id === editing.id)
-      ? blogPosts.map((p) => (p.id === editing.id ? editing : p))
-      : [editing, ...blogPosts];
+
+    // Ensure we preserve/resolve authorId when possible: if the editor has
+    // a matching saved author name but no authorId, attach the author's id.
+    const finalEditing = { ...editing };
+    if (!finalEditing.authorId && finalEditing.author) {
+      const match = authors.find((a) => a.name?.toLowerCase() === finalEditing.author?.toLowerCase());
+      if (match) finalEditing.authorId = match.id;
+    }
+
+    const isNewPost = !blogPosts.find((p) => p.id === finalEditing.id);
+    const wasPublished = blogPosts.find((p) => p.id === finalEditing.id)?.published;
+    const isNowPublished = finalEditing.published;
+
+    const updated = blogPosts.find((p) => p.id === finalEditing.id)
+      ? blogPosts.map((p) => (p.id === finalEditing.id ? finalEditing : p))
+      : [finalEditing, ...blogPosts];
     setBlogPosts(updated);
+    
+    // Send notification emails if publishing a new post or just published a draft
+    if ((isNewPost || !wasPublished) && isNowPublished && notifySubscribers && subscribers.length > 0) {
+      setSending(true);
+      try {
+        const postUrl = `${window.location.origin}/blog/${editing.id}`;
+        const response = await fetch('/api/blog/notify-subscribers', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: editing.title,
+            excerpt: editing.excerpt,
+            date: editing.date,
+            category: editing.category,
+            postUrl,
+            subscribers: subscribers,
+          }),
+        });
+        
+        if (!response.ok) {
+          console.warn('Failed to send notifications');
+        }
+      } catch (err) {
+        console.error('Error sending subscriber notifications:', err);
+      } finally {
+        setSending(false);
+      }
+    }
+    
     setShowForm(false);
     setEditing(null);
+    setNotifySubscribers(false);
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };
@@ -299,6 +343,17 @@ export default function AdminBlog() {
                     />
                     Published
                   </label>
+                  {editing.published && subscribers.length > 0 && (
+                    <label className="block text-sm text-gray-600 mt-2">
+                      <input
+                        type="checkbox"
+                        checked={notifySubscribers}
+                        onChange={(e) => setNotifySubscribers(e.target.checked)}
+                        className="h-4 w-4 text-orange-600 border-gray-300 rounded mr-2"
+                      />
+                      Notify {subscribers.length} subscriber{subscribers.length !== 1 ? 's' : ''} about this post
+                    </label>
+                  )}
                 </div>
                 <div className="space-y-2">
                   <label className="block text-sm font-semibold text-gray-700">Additional Image URLs</label>
@@ -376,10 +431,11 @@ export default function AdminBlog() {
                 <button
                   type="button"
                   onClick={handleSave}
-                  disabled={!editing.title || !editing.excerpt}
-                  className="flex-1 py-3 bg-orange-600 text-white font-bold rounded-lg cursor-pointer disabled:opacity-50"
+                  disabled={!editing.title || !editing.excerpt || sending}
+                  className="flex-1 py-3 bg-orange-600 text-white font-bold rounded-lg cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2"
                 >
-                  Save Post
+                  {sending && <i className="ri-loader-4-line animate-spin" />}
+                  {sending ? 'Sending...' : 'Save Post'}
                 </button>
                 <button type="button" onClick={() => setShowForm(false)} className="px-6 py-3 border border-gray-200 text-gray-600 font-semibold rounded-lg cursor-pointer">
                   Cancel

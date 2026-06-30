@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback } from 'react';
+import RichTextEditor from '../../../components/RichTextEditor';
 import { useSiteData, Service } from '../../../context/SiteDataContext';
 import { mysqlService } from '../../../services/mysqlService';
 
@@ -230,23 +231,21 @@ export default function AdminServices() {
               </div>
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">Description *</label>
-                <textarea
+                <RichTextEditor
                   value={editing.description}
-                  onChange={(e) => setEditing({ ...editing, description: e.target.value })}
-                  rows={4}
+                  onChange={(v) => setEditing({ ...editing, description: v })}
                   maxLength={500}
-                  className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-orange-400 resize-none"
+                  rows={4}
                   placeholder="Describe this service..."
                 />
               </div>
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">Full Service Details</label>
-                <textarea
+                <RichTextEditor
                   value={editing.details}
-                  onChange={(e) => setEditing({ ...editing, details: e.target.value })}
-                  rows={8}
+                  onChange={(v) => setEditing({ ...editing, details: v })}
                   maxLength={3000}
-                  className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-orange-400 resize-none"
+                  rows={8}
                   placeholder="Add longer service details, benefits, process steps, and other content to appear on the detail page."
                 />
                 <p className="text-xs text-gray-400 mt-2">Use new paragraphs and line breaks to separate sections.</p>

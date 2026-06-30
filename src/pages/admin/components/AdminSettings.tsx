@@ -1,5 +1,6 @@
 import { useSiteData, SiteSettings, SocialMedia } from '../../../context/SiteDataContext';
 import { useState, useRef, useEffect } from 'react';
+import RichTextEditor from '../../../components/RichTextEditor';
 import { mysqlService } from '../../../services/mysqlService';
 
 export default function AdminSettings() {
@@ -304,8 +305,8 @@ export default function AdminSettings() {
                 <button
                   type="button"
                   onClick={() => {
-                    setLogoPreview('https://static.readdy.ai/image/2645941fdc0e183360970fc234d34970/773766d2f6ed38db8ecc7ecb533b68b7.jpeg');
-                    setForm((prev) => ({ ...prev, logoUrl: 'https://static.readdy.ai/image/2645941fdc0e183360970fc234d34970/773766d2f6ed38db8ecc7ecb533b68b7.jpeg' }));
+                    setLogoPreview('/primecrest-logo.png');
+                    setForm((prev) => ({ ...prev, logoUrl: '/primecrest-logo.png' }));
                   }}
                   className="flex items-center gap-2 px-4 py-2.5 border border-gray-300 text-gray-700 text-sm font-semibold rounded-lg cursor-pointer hover:bg-gray-50 transition-colors"
                 >
@@ -441,12 +442,12 @@ export default function AdminSettings() {
               <div className="border-t border-orange-200 pt-4">
                 <label className="block text-xs font-semibold text-gray-500 mb-2">Or paste image URL</label>
                 <input
-                  type="url"
+                  type="text"
                   name="logoUrl"
                   value={form.logoUrl}
                   onChange={(e) => { handleChange(e); setLogoPreview(e.target.value); }}
                   className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-orange-400"
-                  placeholder="https://your-logo-url.com/logo.png"
+                  placeholder="https://your-logo-url.com/logo.png or /primecrest-logo.png"
                 />
               </div>
             </div>
@@ -478,37 +479,31 @@ export default function AdminSettings() {
           ))}
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-2">About Text</label>
-            <textarea
-              name="aboutText"
+            <RichTextEditor
               value={form.aboutText}
-              onChange={handleChange}
+              onChange={(v) => setForm({ ...form, aboutText: v })}
               rows={4}
               maxLength={500}
-              className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-orange-400 resize-none"
               placeholder="Company description..."
             />
           </div>
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-2">Privacy Policy</label>
-            <textarea
-              name="privacyPolicy"
+            <RichTextEditor
               value={form.privacyPolicy}
-              onChange={handleChange}
+              onChange={(v) => setForm({ ...form, privacyPolicy: v })}
               rows={4}
               maxLength={1000}
-              className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-orange-400 resize-none"
               placeholder="Enter your privacy policy text here"
             />
           </div>
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-2">Terms of Service</label>
-            <textarea
-              name="termsOfService"
+            <RichTextEditor
               value={form.termsOfService}
-              onChange={handleChange}
+              onChange={(v) => setForm({ ...form, termsOfService: v })}
               rows={4}
               maxLength={1000}
-              className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-orange-400 resize-none"
               placeholder="Enter your terms of service text here"
             />
           </div>
@@ -547,7 +542,7 @@ export default function AdminSettings() {
                 <div className="flex-1">
                   <label className="block text-xs font-semibold text-gray-600 mb-1">{field.label}</label>
                   <input
-                    type="url"
+                    type="text"
                     value={(form.socialMedia || {})[field.key] || ''}
                     onChange={(e) => handleSocialChange(field.key, e.target.value)}
                     className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-orange-400"
@@ -575,7 +570,7 @@ export default function AdminSettings() {
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-2">MySQL API Base URL</label>
             <input
-              type="url"
+              type="text"
               name="mysqlApiUrl"
               value={form.mysqlApiUrl || ''}
               onChange={handleChange}

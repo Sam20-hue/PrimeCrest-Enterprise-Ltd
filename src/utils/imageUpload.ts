@@ -9,10 +9,7 @@ const loadImage = (src: string): Promise<HTMLImageElement> =>
 export const applyWatermarkToImage = async (file: File): Promise<File> => {
   if (!file.type.startsWith('image/')) return file;
 
-  const isSmallImage = file.size < 1024 * 1024;
-  if (isSmallImage) {
-    return file;
-  }
+  // Always apply watermark so uploaded images visibly carry the Primecrest mark.
 
   const objectUrl = URL.createObjectURL(file);
 
@@ -27,7 +24,9 @@ export const applyWatermarkToImage = async (file: File): Promise<File> => {
 
     context.drawImage(image, 0, 0, canvas.width, canvas.height);
 
-    const logo = await loadImage('/favicon.png').catch(() => null);
+    // Prefer a small visible Primecrest watermark logo in public/primecrest-watermark.svg
+    // fallback to favicon.png if not present.
+    const logo = await loadImage('/primecrest-watermark.svg').catch(() => loadImage('/favicon.png').catch(() => null));
     if (logo) {
       const paddingX = Math.max(16, Math.round(canvas.width * 0.04));
       const paddingY = Math.max(16, Math.round(canvas.height * 0.04));

@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "watermark:images": "node scripts/watermark-images.cjs",
     "postbuild": "node -e \"const fs=require('fs'); const src='public/.htaccess'; const dest='out/.htaccess'; if (fs.existsSync(src)) fs.copyFileSync(src, dest);\"",
     "preview": "vite preview",
     "start": "npx serve -s out -l 3000",
@@ -24,7 +25,8 @@
     "react-dom": "^19.1.2",
     "react-i18next": "^15.6.0",
     "react-router-dom": "^7.6.3",
-    "recharts": "3.2.0"
+    "recharts": "3.2.0",
+    "sharp": "^0.35.2"
   },
   "devDependencies": {
     "@eslint/js": "^9.30.1",

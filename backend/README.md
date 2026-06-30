@@ -45,35 +45,53 @@ The backend uses TOTP (Time-based One-Time Password) via authenticator apps like
 
 ## Contact Form Email Setup
 
-To enable contact form emails (visitors can send messages that arrive in your inbox at samsonakula3@gmail.com):
+To enable contact form emails for your Primecrest site using the cPanel email account:
 
-### Requirements
-- SMTP server credentials (Gmail, Outlook, SendGrid, etc.)
-- For Gmail: Use app-specific password if 2FA is enabled
+### Required SMTP values
+- `SMTP_HOST=mail.primecrestenterprise.com`
+- `SMTP_USER=info@primecrestenterprise.com`
+- `SMTP_PASS=<email account password>`
+- `SENDER_EMAIL=info@primecrestenterprise.com`
+- `ADMIN_EMAIL=info@primecrestenterprise.com`
 
-### Setup Steps (PowerShell)
+### Recommended cPanel SMTP settings
+Use the SSL/TLS settings from cPanel for best results:
 
 ```powershell
-# Set these environment variables before running npm start
-$env:SMTP_HOST = 'smtp.gmail.com'
-$env:SMTP_PORT = '587'
-$env:SMTP_SECURE = 'false'
-$env:SMTP_USER = 'your-email@gmail.com'
-$env:SMTP_PASS = 'your-app-password'
-$env:SENDER_EMAIL = 'your-email@gmail.com'
+$env:SMTP_HOST = 'mail.primecrestenterprise.com'
+$env:SMTP_PORT = '465'
+$env:SMTP_SECURE = 'true'
+$env:SMTP_USER = 'info@primecrestenterprise.com'
+$env:SMTP_PASS = 'your_email_password'
+$env:SENDER_EMAIL = 'info@primecrestenterprise.com'
+$env:ADMIN_EMAIL = 'info@primecrestenterprise.com'
 
-# Then start the backend
 npm run start
 ```
 
-### Gmail Setup (Recommended)
-1. Enable 2-Step Verification on your Google account
-2. Go to https://myaccount.google.com/apppasswords
-3. Select "Mail" and "Windows Computer"
-4. Google will generate a 16-character app password
-5. Use that app password as `SMTP_PASS` in the command above
+> Important: do not commit the actual password into Git. Keep it in a local `backend/.env` file or in your deployment environment variables.
+
+If you prefer non-SSL/TLS, use:
+
+```powershell
+$env:SMTP_HOST = 'mail.primecrestenterprise.com'
+$env:SMTP_PORT = '587'
+$env:SMTP_SECURE = 'false'
+$env:SMTP_USER = 'info@primecrestenterprise.com'
+$env:SMTP_PASS = 'your_email_password'
+$env:SENDER_EMAIL = 'info@primecrestenterprise.com'
+$env:ADMIN_EMAIL = 'info@primecrestenterprise.com'
+
+npm run start
+```
+
+### Notes
+- Port `465` requires `SMTP_SECURE=true`
+- Port `587` requires `SMTP_SECURE=false`
+- The password must be the email account password for `info@primecrestenterprise.com`
 
 ### Supported SMTP Providers
+- **cPanel mail**: mail.primecrestenterprise.com (port 465 for SSL/TLS)
 - **Gmail**: smtp.gmail.com (port 587, secure: false)
 - **Outlook**: smtp-mail.outlook.com (port 587, secure: false)
 - **SendGrid**: smtp.sendgrid.net (port 587, secure: false)
