@@ -28,7 +28,9 @@
       "password": "",
       "emptyPasswordInput": false,
       "savePassword": true,
-      "profileName": "Primecrest MySQL"
+      "profileName": "Primecrest MySQL",
+      "groupId": "ROOT",
+      "id": "6eb16758-9668-40f7-9f54-98a26f48e75e"
     }
   ],
   "python-envs.defaultEnvManager": "ms-python.python:system"

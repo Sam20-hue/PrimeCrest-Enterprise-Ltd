@@ -138,7 +138,17 @@ export default function AdminTeam() {
               <div className="flex justify-center mb-2">
                 <div className="w-24 h-24 rounded-full overflow-hidden border-4 border-orange-100 bg-gray-50 flex items-center justify-center">
                   {editing.imageUrl ? (
-                    <img src={editing.imageUrl} alt="preview" className="w-full h-full object-cover object-top" />
+                    <img
+                      src={editing.imageUrl}
+                      alt="preview"
+                      className="w-full h-full object-cover object-top"
+                      loading="lazy"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).style.display = 'none';
+                        const parent = (e.target as HTMLImageElement).parentElement;
+                        if (parent) parent.innerHTML = '<i class="ri-user-line text-3xl text-gray-300" />';
+                      }}
+                    />
                   ) : (
                     <i className="ri-user-line text-3xl text-gray-300" />
                   )}
@@ -233,7 +243,17 @@ export default function AdminTeam() {
             <div key={member.id} className="bg-white rounded-xl border border-gray-100 p-5 flex items-center gap-4">
               <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-orange-100 flex-shrink-0 bg-gray-50">
                 {member.imageUrl ? (
-                  <img src={member.imageUrl} alt={member.name} className="w-full h-full object-cover object-top" />
+                  <img
+                    src={member.imageUrl}
+                    alt={member.name}
+                    className="w-full h-full object-cover object-top"
+                    loading="lazy"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).style.display = 'none';
+                      const parent = (e.target as HTMLImageElement).parentElement;
+                      if (parent) parent.innerHTML = '<div class="w-full h-full flex items-center justify-center"><i class="ri-user-line text-2xl text-gray-300" /></div>';
+                    }}
+                  />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center">
                     <i className="ri-user-line text-2xl text-gray-300" />

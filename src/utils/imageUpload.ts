@@ -44,7 +44,7 @@ export const applyWatermarkToImage = async (file: File): Promise<File> => {
     }
 
     const blob = await new Promise<Blob | null>((resolve) => {
-      canvas.toBlob(resolve, file.type || 'image/png', 0.98);
+      canvas.toBlob(resolve, file.type || 'image/png', 0.85);
     });
 
     if (!blob) return file;

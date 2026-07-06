@@ -1,5 +1,6 @@
 import HeroSection from './components/HeroSection';
 import ServicesPreview from './components/ServicesPreview';
+import BriefExplanationSection from './components/BriefExplanationSection';
 import ProcessSection from './components/ProcessSection';
 import TestimonialsSection from './components/TestimonialsSection';
 import CtaBanner from './components/CtaBanner';
@@ -10,6 +11,7 @@ export default function HomePage() {
     <main>
       <HeroSection />
       <ServicesPreview />
+      <BriefExplanationSection />
       <ProcessSection />
       <GalleryPreview />
       <TestimonialsSection />

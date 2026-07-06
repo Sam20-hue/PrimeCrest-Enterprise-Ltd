@@ -69,7 +69,7 @@ export default function GalleryPage() {
                   {item.category}
                 </span>
                 <h3 className="text-white font-bold text-base">{item.title}</h3>
-                <p className="text-gray-300 text-xs mt-1 line-clamp-2">{item.description}</p>
+                <div className="text-gray-300 text-xs mt-1 line-clamp-2" dangerouslySetInnerHTML={{ __html: item.description || '' }} />
               </div>
               <div className="absolute top-3 right-3 w-9 h-9 flex items-center justify-center bg-white/15 backdrop-blur-sm rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
                 <i className="ri-zoom-in-line text-white text-sm" />
@@ -110,7 +110,7 @@ export default function GalleryPage() {
             <div className="p-6 bg-white text-gray-900">
               <h3 className="text-2xl font-bold mb-2">{selectedItem.title}</h3>
               <p className="text-sm text-gray-500 mb-4">{selectedItem.category}</p>
-              <p className="text-gray-700 whitespace-pre-wrap">{selectedItem.description || 'No description available.'}</p>
+              <div className="text-gray-700 whitespace-pre-wrap" dangerouslySetInnerHTML={{ __html: selectedItem.description || '<p>No description available.</p>' }} />
             </div>
           </div>
         </div>

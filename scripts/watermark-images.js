@@ -18,6 +18,10 @@ async function processFile(inputPath) {
 
     const dir = path.dirname(inputPath);
     const base = path.basename(inputPath, ext);
+    // Skip logo files - they should not be watermarked
+    if (base.includes('logo') || base.includes('logo-watermarked')) {
+      return { input: inputPath, skippedLogo: true };
+    }
     const outName = `${base}${OUT_SUFFIX}${ext}`;
     const outPath = path.join(dir, outName);
 
@@ -47,6 +51,8 @@ async function processFile(inputPath) {
 
     const composed = await img
       .composite([{ input: watermarkPng, gravity: 'southeast', blend: 'over', density: 72 }])
+      .blur(1.5) // Significant blur for natural soft appearance
+      .jpeg({ progressive: true, quality: 75, mozjpeg: true })
       .toBuffer();
 
     await fs.promises.writeFile(outPath, composed);

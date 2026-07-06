@@ -121,7 +121,7 @@ export default function AdminBlog() {
     const imageFiles = Array.from(files).filter((f) => f.type.startsWith('image/'));
     if (imageFiles.length === 0) return;
 
-    const uploadedUrls: string[] = [];
+    const uploadedImages: Array<{ url: string; description?: string }> = [];
     for (const file of imageFiles) {
       let imageUrl = '';
       const uploadResult = await mysqlService.uploadImage(file);
@@ -135,10 +135,10 @@ export default function AdminBlog() {
         });
         imageUrl = dataUrl;
       }
-      uploadedUrls.push(imageUrl);
+      uploadedImages.push({ url: imageUrl, description: '' });
     }
 
-    const updatedImages = [...(editing.images || []), ...uploadedUrls];
+    const updatedImages = [...(editing.images || []), ...uploadedImages];
     setEditing({ ...editing, images: updatedImages });
   }, [editing]);
 
@@ -282,11 +282,24 @@ export default function AdminBlog() {
                     </select>
                     {editing.authorId && (
                       <div className="flex items-center gap-3 text-sm text-gray-700">
-                        <img
-                          src={authors.find((a) => a.id === editing.authorId)?.imageUrl || ''}
-                          alt="Author avatar"
-                          className="w-10 h-10 rounded-full object-cover border border-gray-200"
-                        />
+                        <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0 border border-gray-200 overflow-hidden">
+                          {authors.find((a) => a.id === editing.authorId)?.imageUrl ? (
+                            <img
+                              src={authors.find((a) => a.id === editing.authorId)?.imageUrl}
+                              alt="Author avatar"
+                              className="w-full h-full object-cover"
+                              loading="lazy"
+                              onError={(e) => {
+                                (e.target as HTMLImageElement).style.display = 'none';
+                              }}
+                            />
+                          ) : null}
+                          {!authors.find((a) => a.id === editing.authorId)?.imageUrl && (
+                            <span className="text-xs font-bold text-gray-600">
+                              {authors.find((a) => a.id === editing.authorId)?.name?.[0]?.toUpperCase()}
+                            </span>
+                          )}
+                        </div>
                         <div>
                           <p className="font-semibold">{authors.find((a) => a.id === editing.authorId)?.name}</p>
                           <p className="text-xs text-gray-500">Selected saved author</p>
@@ -382,26 +395,55 @@ export default function AdminBlog() {
                     />
                   </div>
                   <textarea
-                    value={(editing.images || []).join('\n')}
-                    onChange={(e) => setEditing({ ...editing, images: e.target.value.split('\n').filter(Boolean) })}
+                    value={(editing.images || []).map(img => typeof img === 'string' ? img : img.url).join('\n')}
+                    onChange={(e) => {
+                      const urls = e.target.value.split('\n').filter(Boolean);
+                      setEditing({ ...editing, images: urls.map(url => ({ url, description: '' })) });
+                    }}
                     rows={3}
                     className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-orange-400 resize-none"
                     placeholder="One image URL per line (or drag & drop above)"
                   />
                   {editing.images && editing.images.length > 0 && (
-                    <div className="grid grid-cols-3 gap-2">
-                      {editing.images.map((img, idx) => (
-                        <div key={idx} className="relative group">
-                          <img src={img} alt={`Additional ${idx}`} className="w-full h-20 object-cover rounded" onError={(e) => (e.currentTarget.style.display = 'none')} />
-                          <button
-                            type="button"
-                            onClick={() => setEditing({ ...editing, images: editing.images?.filter((_, i) => i !== idx) || [] })}
-                            className="absolute top-1 right-1 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-xs"
-                          >
-                            ×
-                          </button>
-                        </div>
-                      ))}
+                    <div className="space-y-3">
+                      {editing.images.map((img, idx) => {
+                        const imgUrl = typeof img === 'string' ? img : img.url;
+                        const imgDesc = typeof img === 'string' ? '' : (img.description || '');
+                        return (
+                          <div key={idx} className="border border-gray-200 rounded-lg p-3 space-y-2">
+                            <div className="flex items-start gap-3">
+                              <img src={imgUrl} alt={`Additional ${idx}`} className="w-16 h-16 object-cover rounded flex-shrink-0" onError={(e) => (e.currentTarget.style.display = 'none')} />
+                              <div className="flex-1 min-w-0 space-y-2">
+                                <textarea
+                                  value={imgDesc}
+                                  onChange={(e) => {
+                                    const newImages = [...(editing.images || [])];
+                                    const image = newImages[idx];
+                                    if (typeof image !== 'string') {
+                                      image.description = e.target.value;
+                                    }
+                                    setEditing({ ...editing, images: newImages });
+                                  }}
+                                  rows={3}
+                                  maxLength={3000}
+                                  className="w-full px-3 py-2 border border-gray-200 rounded text-sm focus:outline-none focus:border-orange-400 resize-none"
+                                  placeholder="Image title and description (max 3000 words)..."
+                                />
+                                <div className="text-xs text-gray-500">
+                                  {imgDesc.split(/\s+/).length} words
+                                </div>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => setEditing({ ...editing, images: editing.images?.filter((_, i) => i !== idx) || [] })}
+                                className="px-2 py-1 bg-red-500 text-white rounded text-xs hover:bg-red-600 flex-shrink-0"
+                              >
+                                Remove
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
@@ -418,11 +460,11 @@ export default function AdminBlog() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Full Content *</label>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Full Content * (Max 6500 words)</label>
                 <RichTextEditor
                   value={editing.content}
                   onChange={(value) => setEditing({ ...editing, content: value })}
-                  maxLength={4000}
+                  maxLength={6500}
                   placeholder="Full blog post content... Write as much detail as needed for the article."
                   rows={14}
                 />

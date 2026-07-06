@@ -1,4 +1,14 @@
 <?php
+ini_set('display_errors', '0');
+ini_set('display_startup_errors', '0');
+error_reporting(E_ALL & ~E_DEPRECATED & ~E_STRICT & ~E_NOTICE & ~E_WARNING);
+
+if (ob_get_level() === 0) {
+    ob_start();
+}
+// Path for append-only API response debug log. Keep small; rotate/delete on server if needed.
+$__api_debug_log = __DIR__ . '/last_api_responses.log';
+
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
@@ -9,145 +19,64 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit;
 }
 
-function respond($code, $payload) {
+require_once __DIR__ . '/db.php';
+
+/**
+ * @param int $code
+ * @param mixed $payload
+ */
+function respond(int $code, mixed $payload): void {
+    // Ensure any accidental buffered output is removed so client receives pure JSON.
+    if (ob_get_length() !== false) {
+        ob_clean();
+    }
+
+    // Create a compact log entry for debugging; do not include headers or secrets.
+    try {
+        $entry = [
+            'time' => date('c'),
+            'uri' => $_SERVER['REQUEST_URI'] ?? '',
+            'method' => $_SERVER['REQUEST_METHOD'] ?? '',
+            'status' => $code,
+            'payload' => $payload,
+        ];
+        @file_put_contents($__api_debug_log, json_encode($entry, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . PHP_EOL, FILE_APPEND | LOCK_EX);
+    } catch (Throwable $e) {
+        // ignore logging failures
+    }
+
     http_response_code($code);
     echo json_encode($payload);
     exit;
 }
 
-function getStorageDir() {
-    $dir = __DIR__ . '/storage';
-    if (!is_dir($dir)) {
-        mkdir($dir, 0755, true);
-    }
-    return $dir;
-}
-
-function storagePath($filename) {
-    return getStorageDir() . '/' . $filename;
-}
-
-function loadJson($filename) {
-    $path = storagePath($filename);
-    if (!file_exists($path)) return null;
-    $contents = file_get_contents($path);
-    return json_decode($contents, true) ?: null;
-}
-
-function saveJson($filename, $data) {
-    $path = storagePath($filename);
-    file_put_contents($path, json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
-}
-
-const NEWSLETTER_EMAIL = 'newsletter@primecrestenterprise.com';
-const CONTACT_SENDER_EMAIL = 'info@primecrestenterprise.com';
-
-function getSubscribers() {
-    $data = loadJson('subscribers.json');
-    if (!is_array($data)) {
-        return [];
-    }
-    return array_values(array_filter(array_map('trim', $data), 'strlen'));
-}
-
-function saveSubscribers($subscribers) {
-    saveJson('subscribers.json', array_values(array_unique($subscribers)));
-}
-
-function isValidEmail(string $email): bool {
-    return filter_var($email, FILTER_VALIDATE_EMAIL) !== false;
-}
-
-function buildNewsletterHtml(array $post): string {
-    $title = htmlspecialchars($post['title'] ?? 'Primecrest Enterprise Update', ENT_QUOTES, 'UTF-8');
-    $excerpt = nl2br(htmlspecialchars($post['excerpt'] ?? '', ENT_QUOTES, 'UTF-8'));
-    $content = nl2br(htmlspecialchars($post['content'] ?? '', ENT_QUOTES, 'UTF-8'));
-    $author = htmlspecialchars($post['author'] ?? 'Primecrest Enterprise', ENT_QUOTES, 'UTF-8');
-    $category = htmlspecialchars($post['category'] ?? 'Update', ENT_QUOTES, 'UTF-8');
-    $date = htmlspecialchars($post['date'] ?? date('F j, Y'), ENT_QUOTES, 'UTF-8');
-    $imageUrl = htmlspecialchars($post['imageUrl'] ?? '', ENT_QUOTES, 'UTF-8');
-
-    return '<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">' .
-        '<style>body{margin:0;padding:0;background:#f4f5f7;color:#1f2937;font-family:Arial,Helvetica,sans-serif;} .container{max-width:720px;margin:0 auto;padding:32px;} .header{background:#111827;color:#f59e0b;padding:30px;border-radius:24px 24px 0 0;text-align:center;} .header h1{margin:0;font-size:30px;line-height:1.05;} .meta{margin-top:14px;font-size:14px;color:#e5e7eb;} .card{background:#ffffff;border-radius:24px;padding:28px;box-shadow:0 24px 60px rgba(15,23,42,0.08);margin-top:-20px;} .badge{display:inline-block;padding:6px 14px;background:#fde68a;color:#92400e;font-size:12px;font-weight:700;border-radius:9999px;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:18px;} .excerpt{font-size:16px;line-height:1.8;color:#334155;margin-bottom:20px;} .content{font-size:15px;line-height:1.85;color:#475569;} .footer{margin-top:32px;padding-top:24px;border-top:1px solid #e2e8f0;color:#64748b;font-size:13px;text-align:center;} .button{display:inline-block;margin-top:24px;padding:14px 28px;background:#111827;color:#ffffff;border-radius:12px;text-decoration:none;font-weight:700;}</style>' .
-        '</head><body><div class="container"><div class="header"><span class="badge">' . $category . '</span><h1>' . $title . '</h1><p class="meta">Published ' . $date . ' • by ' . $author . '</p></div><div class="card">' .
-        ($imageUrl ? '<img src="' . $imageUrl . '" alt="' . $title . '" style="width:100%;border-radius:18px;object-fit:cover;margin-bottom:24px;" />' : '') .
-        '<div class="excerpt">' . $excerpt . '</div><div class="content">' . $content . '</div>' .
-        '<a class="button" href="https://' . ($_SERVER['HTTP_HOST'] ?? 'primecrestenterprise.com') . '/blog" target="_blank">Read more on Primecrest</a>' .
-        '<div class="footer"><p>Thank you for following Primecrest Enterprise updates.</p><p>For support, reply to this message or visit primecrestenterprise.com.</p></div></div></div></body></html>';
-}
-
-function sendNewsletterMessage(array $post, array $subscribers): bool {
-    if (empty($subscribers)) {
-        return false;
-    }
-    $subject = 'New Primecrest Blog Post: ' . ($post['title'] ?? 'Primecrest Enterprise Update');
-    $to = CONTACT_SENDER_EMAIL;
-    $bcc = implode(', ', array_map('trim', array_filter($subscribers, 'isValidEmail')));
-    if ($bcc === '') {
-        return false;
-    }
-
-    $headers = [];
-    $headers[] = 'MIME-Version: 1.0';
-    $headers[] = 'Content-type: text/html; charset=utf-8';
-    $headers[] = 'From: Primecrest Newsletter <' . NEWSLETTER_EMAIL . '>';
-    $headers[] = 'Reply-To: ' . CONTACT_SENDER_EMAIL;
-    $headers[] = 'Bcc: ' . $bcc;
-    $headers[] = 'X-Mailer: PHP/' . phpversion();
-
-    return mail($to, $subject, buildNewsletterHtml($post), implode("\r\n", $headers));
-}
-
-function getDefaultSettings() {
-    return [
-        'logoUrl' => 'https://static.readdy.ai/image/2645941fdc0e183360970fc234d34970/773766d2f6ed38db8ecc7ecb533b68b7.jpeg',
-        'companyName' => 'PRIMECREST ENTERPRISE LTD',
-        'tagline' => 'Your Trusted Security & Technology Partner',
-        'phone' => '0721579821',
-        'email' => 'info@primecrestenterprise.com',
-        'address' => 'Nairobi, Kenya',
-        'aboutText' => 'PRIMECREST ENTERPRISE LTD is a leading security and technology company providing comprehensive solutions across Kenya. With years of experience, we deliver professional CCTV installations, vault engineering, biometric systems, alarm installations, and IT infrastructure for banks, Saccos, businesses, and homes.',
-        'adminPassword' => 'admin123',
-        'adminEmail' => 'samsonakula3@gmail.com',
-        'heroTitle' => 'Enterprise Security & Technology Solutions',
-        'heroSubtitle' => 'CCTV • Vault Engineering • Biometric Systems • Alarm Systems • IT Solutions',
-        'socialMedia' => [
-            'facebook' => '',
-            'instagram' => '',
-            'twitter' => '',
-            'linkedin' => '',
-            'whatsapp' => '',
-            'youtube' => '',
-            'tiktok' => '',
-        ],
-        'mysqlApiUrl' => '',
-    ];
-}
-
-function getRequestBody() {
+function getRequestBody(): ?array {
     $input = file_get_contents('php://input');
-    if (!$input) return null;
+    if ($input === false || trim($input) === '') {
+        return null;
+    }
     return json_decode($input, true);
 }
 
-function generateId() {
-    return (string) time() . bin2hex(random_bytes(3));
-}
-
-function findItemIndex(array $items, string $id) {
-    foreach ($items as $index => $item) {
-        if ((string)($item['id'] ?? '') === (string)$id) {
-            return $index;
-        }
+function getRandomBytes(int $length): string {
+    if (function_exists('random_bytes')) {
+        return random_bytes($length);
     }
-    return null;
+    if (function_exists('openssl_random_pseudo_bytes')) {
+        return openssl_random_pseudo_bytes($length);
+    }
+    $bytes = '';
+    for ($i = 0; $i < $length; $i++) {
+        $bytes .= chr(mt_rand(0, 255));
+    }
+    return $bytes;
 }
 
 function base32Encode(string $data): string {
     $alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
     $binary = '';
-    foreach (str_split($data) as $c) {
-        $binary .= str_pad(decbin(ord($c)), 8, '0', STR_PAD_LEFT);
+    foreach (str_split($data) as $char) {
+        $binary .= str_pad(decbin(ord($char)), 8, '0', STR_PAD_LEFT);
     }
     $output = '';
     foreach (str_split($binary, 5) as $chunk) {
@@ -165,9 +94,11 @@ function base32Decode(string $b32): string {
     $b32 = strtoupper($b32);
     $b32 = str_replace('=', '', $b32);
     $binary = '';
-    foreach (str_split($b32) as $c) {
-        $pos = strpos($alphabet, $c);
-        if ($pos === false) continue;
+    foreach (str_split($b32, 1) as $char) {
+        $pos = strpos($alphabet, $char);
+        if ($pos === false) {
+            continue;
+        }
         $binary .= str_pad(decbin($pos), 5, '0', STR_PAD_LEFT);
     }
     $output = '';
@@ -195,8 +126,8 @@ function hotp(string $secret, int $counter, int $digits = 6): string {
 function verifyTotp(string $secret, string $token): bool {
     $timestamp = time();
     $interval = 30;
-    for ($i = -2; $i <= 2; $i++) {
-        $counter = floor($timestamp / $interval) + $i;
+    for ($i = -1; $i <= 1; $i++) {
+        $counter = (int) floor($timestamp / $interval) + $i;
         if (hotp($secret, $counter) === $token) {
             return true;
         }
@@ -204,342 +135,319 @@ function verifyTotp(string $secret, string $token): bool {
     return false;
 }
 
-function getAuthData(): array {
-    $data = loadJson('auth.json');
-    return is_array($data) ? $data : [];
-}
+function upsertSettings(array $payload): void {
+    $allowed = [
+        'siteName','logo','logoUrl','logoAltText','logoWidth','logoHeight','logoDisplayMode','logoContrast','logoSharpness','logoBorderRadius',
+        'companyName','tagline','phone','email','address','aboutText','briefExplanation','privacyPolicy','termsOfService',
+        'adminPassword','adminEmail','heroTitle','heroSubtitle','heroImage','footerText','mysqlApiUrl','admin2faSecret','admin2faEnabled',
+    ];
 
-function saveAuthData(array $data) {
-    saveJson('auth.json', $data);
-}
-
-function getAuthEntry(array &$auth, string $email): array {
-    if (is_array($auth[$email] ?? null)) {
-        return $auth[$email];
-    }
-
-    if (!empty($auth['secret'])) {
-        $legacyEntry = [
-            'secret' => $auth['secret'],
-            'enabled' => !empty($auth['enabled']),
-        ];
-        if ($email !== '') {
-            $auth[$email] = $legacyEntry;
-            saveAuthData($auth);
-        }
-        return $legacyEntry;
-    }
-
-    return [];
-}
-
-function buildQrCodeUrl(string $email, string $secret): string {
-    $label = rawurlencode('Primecrest Enterprise:' . $email);
-    $issuer = rawurlencode('Primecrest Enterprise');
-    $otpauth = "otpauth://totp/{$label}?secret={$secret}&issuer={$issuer}&algorithm=SHA1&digits=6&period=30";
-    return 'https://chart.googleapis.com/chart?chs=200x200&cht=qr&chl=' . rawurlencode($otpauth);
-}
-
-$uri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
-$script = dirname($_SERVER['SCRIPT_NAME']);
-$path = trim(substr($uri, strlen($script)), '/');
-$parts = explode('/', $path);
-$resource = $parts[0] ?? '';
-$id = $parts[1] ?? null;
-
-if ($resource === 'sync' && $_SERVER['REQUEST_METHOD'] === 'POST') {
-    $payload = getRequestBody();
-    if (!is_array($payload)) {
-        respond(400, ['error' => 'Invalid sync payload.']);
-    }
-
-    $saved = [];
-    $collections = ['services', 'gallery', 'blog', 'products', 'testimonials', 'team'];
-
-    if (isset($payload['settings']) && is_array($payload['settings'])) {
-        saveJson('settings.json', $payload['settings']);
-        $saved[] = 'settings';
-    }
-
-    foreach ($collections as $collection) {
-        if (isset($payload[$collection]) && is_array($payload[$collection])) {
-            saveJson($collection . '.json', $payload[$collection]);
-            $saved[] = $collection;
+    $fields = [];
+    $params = [];
+    $types = '';
+    foreach ($allowed as $field) {
+        if (array_key_exists($field, $payload)) {
+            $fields[] = "$field = ?";
+            $params[] = $payload[$field];
+            $types .= is_int($payload[$field]) || is_bool($payload[$field]) ? 'i' : 's';
         }
     }
 
-    respond(200, ['success' => true, 'updated' => $saved]);
+    if (empty($fields)) {
+        return;
+    }
+
+    $existing = fetch_one($GLOBALS['conn'], 'SELECT id FROM settings LIMIT 1');
+    if ($existing) {
+        $params[] = $existing['id'];
+        $types .= 'i';
+        safeQuery($GLOBALS['conn'], 'UPDATE settings SET ' . implode(', ', $fields) . ' WHERE id = ?', $params, $types);
+    } else {
+        $columns = array_keys(array_filter(array_combine($allowed, $allowed), fn($field) => array_key_exists($field, $payload)));
+        $placeholders = implode(', ', array_fill(0, count($columns), '?'));
+        safeQuery($GLOBALS['conn'], 'INSERT INTO settings (' . implode(', ', $columns) . ') VALUES (' . $placeholders . ')', $params, $types);
+    }
 }
 
-$allowedResources = ['services', 'gallery', 'blog', 'products', 'settings', 'testimonials', 'team', 'subscribers', 'auth'];
-if (!in_array($resource, $allowedResources, true)) {
-    respond(404, ['error' => 'Resource not found.']);
-}
-
+$uri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH) ?: '';
+$path = preg_replace('#^/api#', '', $uri);
+$path = trim($path, '/');
+$segments = $path === '' ? [] : explode('/', $path);
+$resource = $segments[0] ?? '';
+$action = $segments[1] ?? null;
+$id = isset($segments[1]) && ctype_digit($segments[1]) ? (int)$segments[1] : null;
 $method = $_SERVER['REQUEST_METHOD'];
+$payload = getRequestBody();
 
-if ($resource === 'subscribers') {
-    if ($method === 'GET') {
-        respond(200, getSubscribers());
-    }
-
-    if ($method === 'POST') {
-        $payload = getRequestBody();
-        if (!is_array($payload) || empty($payload['email'] ?? '')) {
-            respond(400, ['error' => 'Email is required.']);
-        }
-        $email = trim(strtolower($payload['email']));
-        if (!isValidEmail($email)) {
-            respond(400, ['error' => 'Invalid email address.']);
-        }
-        $subscribers = getSubscribers();
-        if (in_array($email, $subscribers, true)) {
-            respond(200, ['success' => true, 'message' => 'Already subscribed.', 'email' => $email]);
-        }
-        $subscribers[] = $email;
-        saveSubscribers($subscribers);
-        respond(201, ['success' => true, 'email' => $email]);
-    }
-
-    if ($method === 'DELETE') {
-        $email = trim(strtolower($_GET['email'] ?? ''));
-        if ($email === '' || !isValidEmail($email)) {
-            respond(400, ['error' => 'Subscriber email is required.']);
-        }
-        $subscribers = getSubscribers();
-        $filtered = array_values(array_filter($subscribers, function ($item) use ($email) {
-            return strtolower(trim($item)) !== $email;
-        }));
-        saveSubscribers($filtered);
-        respond(200, ['success' => true, 'email' => $email]);
-    }
-
-    respond(405, ['error' => 'Method not allowed.']);
-}
-
-if ($resource === 'sync' && $_SERVER['REQUEST_METHOD'] === 'POST') {
-    $payload = getRequestBody();
-    if (!is_array($payload)) {
-        respond(400, ['error' => 'Invalid sync payload.']);
-    }
-
-    $saved = [];
-    $collections = ['services', 'gallery', 'blog', 'products', 'testimonials', 'team'];
-    $newsletterQueue = [];
-    $existingBlog = loadJson('blog.json');
-    if (!is_array($existingBlog)) {
-        $existingBlog = [];
-    }
-
-    if (isset($payload['settings']) && is_array($payload['settings'])) {
-        saveJson('settings.json', $payload['settings']);
-        $saved[] = 'settings';
-    }
-
-    foreach ($collections as $collection) {
-        if (!isset($payload[$collection]) || !is_array($payload[$collection])) {
-            continue;
-        }
-
-        if ($collection === 'blog') {
-            $newBlog = [];
-            foreach ($payload['blog'] as $item) {
-                if (!is_array($item)) {
-                    continue;
-                }
-                $itemId = trim((string)($item['id'] ?? '')) ?: generateId();
-                $itemDate = trim((string)($item['date'] ?? $item['created_at'] ?? date('Y-m-d H:i:s')));
-                $isPublished = !empty($item['published']);
-                $oldIndex = findItemIndex($existingBlog, $itemId);
-                $oldItem = $oldIndex !== null ? $existingBlog[$oldIndex] : null;
-                $alreadySent = !empty($item['newsletterSent']) || (!empty($oldItem['newsletterSent']));
-
-                if ($isPublished && !$alreadySent && (!$oldItem || empty($oldItem['published']) || empty($oldItem['newsletterSent']))) {
-                    $newsletterQueue[] = array_merge($item, [
-                        'id' => $itemId,
-                        'date' => $itemDate,
-                        'published' => true,
-                        'newsletterSent' => true,
-                    ]);
-                    $alreadySent = true;
-                }
-
-                $newBlog[] = array_merge($item, [
-                    'id' => $itemId,
-                    'created_at' => $itemDate,
-                    'published' => $isPublished,
-                    'newsletterSent' => $alreadySent,
-                ]);
-            }
-            saveJson('blog.json', $newBlog);
-            $saved[] = 'blog';
-
-            $subscribers = getSubscribers();
-            if (!empty($newsletterQueue) && !empty($subscribers)) {
-                foreach ($newsletterQueue as $post) {
-                    sendNewsletterMessage($post, $subscribers);
-                }
-            }
-
-            continue;
-        }
-
-        saveJson($collection . '.json', $payload[$collection]);
-        $saved[] = $collection;
-    }
-
-    respond(200, ['success' => true, 'updated' => $saved]);
-}
-
-if ($resource === 'settings') {
-    $settings = loadJson('settings.json');
-    if (!is_array($settings)) {
-        $settings = getDefaultSettings();
-    }
-    if ($method === 'GET') {
-        respond(200, $settings);
-    }
-    if ($method === 'PUT') {
-        $payload = getRequestBody();
-        if (!is_array($payload)) {
-            respond(400, ['error' => 'Invalid request payload.']);
-        }
-        $updated = array_merge($settings, $payload);
-        saveJson('settings.json', $updated);
-        respond(200, $updated);
-    }
-    respond(405, ['error' => 'Method not allowed.']);
+if ($resource === 'health') {
+    respond(200, ['status' => 'ok', 'time' => date('c')]);
 }
 
 if ($resource === 'auth') {
-    $action = $parts[1] ?? '';
     if ($action === '2fa-status' && $method === 'GET') {
         $email = trim($_GET['email'] ?? '');
-        if ($email === '') {
-            respond(400, ['error' => 'Email query parameter is required.']);
+        if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            respond(400, ['error' => 'Valid email is required.']);
         }
-        $auth = getAuthData();
-        $userAuth = getAuthEntry($auth, $email);
-        respond(200, [
-            'setup' => !empty($userAuth['secret']),
-            'enabled' => !empty($userAuth['enabled']),
-        ]);
+        $row = fetch_one($conn, 'SELECT admin2faSecret, admin2faEnabled FROM settings LIMIT 1');
+        respond(200, ['setup' => !empty($row['admin2faSecret']), 'enabled' => !empty($row['admin2faEnabled'])]);
     }
     if ($action === 'setup-2fa' && $method === 'POST') {
-        $body = getRequestBody() ?: [];
-        $email = trim($body['email'] ?? '');
-        if ($email === '') {
-            respond(400, ['error' => 'Email is required.']);
+        if (!is_array($payload)) {
+            respond(400, ['error' => 'Invalid request payload']);
         }
-        $secret = base32Encode(random_bytes(10));
-        $auth = getAuthData();
-        $auth[$email] = [
-            'secret' => $secret,
-            'enabled' => false,
-        ];
-        saveAuthData($auth);
-        $otpauthUrl = "otpauth://totp/" . rawurlencode('Primecrest Enterprise:' . $email) . "?secret={$secret}&issuer=" . rawurlencode('Primecrest Enterprise') . "&algorithm=SHA1&digits=6&period=30";
-        respond(200, [
-            'success' => true,
-            'secret' => $secret,
-            'qrCode' => buildQrCodeUrl($email, $secret),
-            'otpauthUrl' => $otpauthUrl,
-        ]);
+        $email = trim($payload['email'] ?? '');
+        if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            respond(400, ['error' => 'Valid email is required.']);
+        }
+        $secret = strtoupper(str_replace('=', '', base32Encode(getRandomBytes(10))));
+        $existing = fetch_one($conn, 'SELECT id FROM settings LIMIT 1');
+        if ($existing) {
+            safeQuery($conn, 'UPDATE settings SET admin2faSecret = ?, admin2faEnabled = 0 WHERE id = ?', [$secret, $existing['id']], 'si');
+        } else {
+            safeQuery($conn, 'INSERT INTO settings (admin2faSecret, admin2faEnabled) VALUES (?, 0)', [$secret], 's');
+        }
+        $otpauth = 'otpauth://totp/' . rawurlencode('Primecrest Enterprise:' . $email) . '?secret=' . $secret . '&issuer=' . rawurlencode('Primecrest Enterprise') . '&algorithm=SHA1&digits=6&period=30';
+        respond(200, ['success' => true, 'secret' => $secret, 'otpauthUrl' => $otpauth, 'qrCode' => 'https://chart.googleapis.com/chart?chs=200x200&cht=qr&chl=' . rawurlencode($otpauth)]);
     }
     if ($action === 'verify-2fa' && $method === 'POST') {
-        $body = getRequestBody() ?: [];
-        $email = trim($body['email'] ?? '');
-        $token = trim($body['token'] ?? '');
-        if ($email === '' || $token === '') {
-            respond(400, ['error' => 'Email and token are required.']);
+        if (!is_array($payload)) {
+            respond(400, ['error' => 'Invalid request payload']);
         }
-        $auth = getAuthData();
-        $userAuth = getAuthEntry($auth, $email);
-        $secret = $userAuth['secret'] ?? '';
-        if (!$secret) {
-            respond(400, ['error' => '2FA is not set up yet for this email.']);
+        $email = trim($payload['email'] ?? '');
+        $token = preg_replace('/\D/', '', trim($payload['token'] ?? ''));
+        if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            respond(400, ['error' => 'Valid email is required.']);
         }
-        if (!verifyTotp($secret, $token)) {
+        if (strlen($token) !== 6) {
+            respond(400, ['error' => 'Invalid token format.']);
+        }
+        $row = fetch_one($conn, 'SELECT admin2faSecret FROM settings LIMIT 1');
+        $secret = $row['admin2faSecret'] ?? '';
+        if ($secret === '' || !verifyTotp($secret, $token)) {
             respond(401, ['error' => 'Invalid or expired token.']);
         }
-        $auth[$email]['enabled'] = true;
-        saveAuthData($auth);
-        respond(200, ['success' => true, 'message' => '2FA token verified!']);
+        $existing = fetch_one($conn, 'SELECT id FROM settings LIMIT 1');
+        if ($existing) {
+            safeQuery($conn, 'UPDATE settings SET admin2faEnabled = 1 WHERE id = ?', [$existing['id']], 'i');
+        }
+        respond(200, ['success' => true, 'message' => '2FA token verified']);
     }
     if ($action === 'reset-2fa' && $method === 'POST') {
-        $body = getRequestBody() ?: [];
-        $email = trim($body['email'] ?? '');
-        if ($email === '') {
-            respond(400, ['error' => 'Email is required.']);
+        $email = trim($payload['email'] ?? '');
+        if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            respond(400, ['error' => 'Valid email is required.']);
         }
-        $auth = getAuthData();
-        if (isset($auth[$email])) {
-            unset($auth[$email]);
-            saveAuthData($auth);
+        $existing = fetch_one($conn, 'SELECT id FROM settings LIMIT 1');
+        if ($existing) {
+            safeQuery($conn, 'UPDATE settings SET admin2faSecret = NULL, admin2faEnabled = 0 WHERE id = ?', [$existing['id']], 'i');
         }
-        respond(200, ['success' => true, 'message' => '2FA reset. A new QR code will be required on next login.']);
+        respond(200, ['success' => true, 'message' => '2FA reset']);
     }
     respond(404, ['error' => 'Auth endpoint not found.']);
 }
 
-// Collections: services, gallery, blog, products, testimonials, team
-$filename = $resource . '.json';
-$items = loadJson($filename);
-if (!is_array($items)) {
-    $items = [];
+if ($resource === 'settings') {
+    if ($method === 'GET') {
+        $row = fetch_one($conn, 'SELECT * FROM settings LIMIT 1');
+        respond(200, $row ?: []);
+    }
+    if ($method === 'PUT') {
+        if (!is_array($payload)) {
+            respond(400, ['error' => 'Invalid request payload']);
+        }
+        upsertSettings($payload);
+        $row = fetch_one($conn, 'SELECT * FROM settings LIMIT 1');
+        respond(200, $row ?: ['success' => true]);
+    }
+    respond(405, ['error' => 'Method not allowed']);
 }
+
+if ($resource === 'sync') {
+    if ($method !== 'POST') {
+        respond(405, ['error' => 'Method not allowed']);
+    }
+    if (!is_array($payload)) {
+        respond(400, ['error' => 'Invalid sync payload']);
+    }
+    $collections = ['services','gallery','blog','products','testimonials','team','authors'];
+    foreach ($collections as $collection) {
+        if (empty($payload[$collection]) || !is_array($payload[$collection])) {
+            continue;
+        }
+        safeQuery($conn, "TRUNCATE TABLE {$collection}");
+        foreach ($payload[$collection] as $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+            switch ($collection) {
+                case 'services':
+                    safeQuery($conn, 'INSERT INTO services (title, subtitle, icon, description) VALUES (?, ?, ?, ?)', [$item['title'] ?? null, $item['subtitle'] ?? null, $item['icon'] ?? null, $item['description'] ?? null], 'ssss');
+                    break;
+                case 'gallery':
+                    safeQuery($conn, 'INSERT INTO gallery (title, category, imageUrl, description) VALUES (?, ?, ?, ?)', [$item['title'] ?? null, $item['category'] ?? null, $item['imageUrl'] ?? null, $item['description'] ?? null], 'ssss');
+                    break;
+                case 'blog':
+                    safeQuery($conn, 'INSERT INTO blog (title, excerpt, content, category, imageUrl, author, authorId, published, date, published_at, newsletterSent) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', [$item['title'] ?? null, $item['excerpt'] ?? null, $item['content'] ?? null, $item['category'] ?? null, $item['imageUrl'] ?? null, $item['author'] ?? null, $item['authorId'] ?? null, !empty($item['published']) ? 1 : 0, $item['date'] ?? null, $item['published_at'] ?? ($item['date'] ?? null), !empty($item['newsletterSent']) ? 1 : 0], 'ssssssisssi');
+                    break;
+                case 'products':
+                    safeQuery($conn, 'INSERT INTO products (name, description, price, image) VALUES (?, ?, ?, ?)', [$item['name'] ?? null, $item['description'] ?? null, isset($item['price']) ? floatval($item['price']) : 0.0, $item['image'] ?? null], 'sdss');
+                    break;
+                case 'testimonials':
+                    safeQuery($conn, 'INSERT INTO testimonials (name, role, photo, quote) VALUES (?, ?, ?, ?)', [$item['name'] ?? null, $item['role'] ?? null, $item['photo'] ?? null, $item['quote'] ?? null], 'ssss');
+                    break;
+                case 'team':
+                    safeQuery($conn, 'INSERT INTO team (name, role, imageUrl) VALUES (?, ?, ?)', [$item['name'] ?? null, $item['role'] ?? null, $item['imageUrl'] ?? null], 'sss');
+                    break;
+                case 'authors':
+                    safeQuery($conn, 'INSERT INTO authors (name, imageUrl, bio, subtitle, joinDate, lastActive, linkedIn, upwork) VALUES (?, ?, ?, ?, ?, ?, ?, ?)', [$item['name'] ?? null, $item['imageUrl'] ?? null, $item['bio'] ?? null, $item['subtitle'] ?? null, $item['joinDate'] ?? null, $item['lastActive'] ?? null, $item['linkedIn'] ?? null, $item['upwork'] ?? null], 'ssssssss');
+                    break;
+            }
+        }
+    }
+    if (!empty($payload['settings']) && is_array($payload['settings'])) {
+        upsertSettings($payload['settings']);
+    }
+    respond(200, ['success' => true]);
+}
+
+if ($resource === 'blog' && $action === 'notify-subscribers' && $method === 'POST') {
+    respond(200, ['success' => true, 'message' => 'Blog notification is not configured on shared hosting.']);
+}
+
+$resourceMap = [
+    'services' => ['table' => 'services', 'columns' => ['title','subtitle','icon','description']],
+    'gallery' => ['table' => 'gallery', 'columns' => ['title','category','imageUrl','description']],
+    'blog' => ['table' => 'blog', 'columns' => ['title','excerpt','content','category','imageUrl','author','authorId','published','date','published_at','newsletterSent']],
+    'products' => ['table' => 'products', 'columns' => ['name','description','price','image']],
+    'testimonials' => ['table' => 'testimonials', 'columns' => ['name','role','photo','quote']],
+    'team' => ['table' => 'team', 'columns' => ['name','role','imageUrl']],
+    'authors' => ['table' => 'authors', 'columns' => ['name','imageUrl','bio','subtitle','joinDate','lastActive','linkedIn','upwork']],
+    'subscribers' => ['table' => 'subscribers', 'columns' => ['email']],
+];
+
+if (!isset($resourceMap[$resource])) {
+    respond(404, ['error' => 'Endpoint not found']);
+}
+
+if ($resource === 'subscribers') {
+    if ($method === 'GET') {
+        $rows = fetch_all_assoc($conn, 'SELECT email FROM subscribers ORDER BY id DESC');
+        respond(200, array_map(fn($row) => $row['email'], $rows));
+    }
+    if ($method === 'POST') {
+        if (!is_array($payload) || empty(trim((string)($payload['email'] ?? '')))) {
+            respond(400, ['error' => 'Email is required']);
+        }
+        $email = trim((string)$payload['email']);
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            respond(400, ['error' => 'Invalid email']);
+        }
+        $existing = fetch_one($conn, 'SELECT id FROM subscribers WHERE email = ?', [$email], 's');
+        if ($existing) {
+            respond(200, ['success' => false, 'message' => 'Already subscribed']);
+        }
+        safeQuery($conn, 'INSERT INTO subscribers (email) VALUES (?)', [$email], 's');
+        respond(201, ['success' => true, 'email' => $email]);
+    }
+    if ($method === 'DELETE') {
+        $email = trim($_GET['email'] ?? '');
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            respond(400, ['error' => 'Valid email query parameter required']);
+        }
+        safeQuery($conn, 'DELETE FROM subscribers WHERE email = ?', [$email], 's');
+        respond(200, ['success' => true, 'email' => $email]);
+    }
+    respond(405, ['error' => 'Method not allowed']);
+}
+
+$table = $resourceMap[$resource]['table'];
+$columns = $resourceMap[$resource]['columns'];
 
 if ($method === 'GET') {
     if ($id === null) {
-        respond(200, $items);
+        $rows = fetch_all_assoc($conn, "SELECT * FROM {$table} ORDER BY id");
+        respond(200, $rows);
     }
-    $index = findItemIndex($items, $id);
-    if ($index === null) {
-        respond(404, ['error' => 'Item not found.']);
+    $row = fetch_one($conn, "SELECT * FROM {$table} WHERE id = ?", [$id], 'i');
+    if (!$row) {
+        respond(404, ['error' => 'Item not found']);
     }
-    respond(200, $items[$index]);
+    respond(200, $row);
 }
 
 if ($method === 'POST') {
-    $payload = getRequestBody();
-    if (!is_array($payload) || empty($payload)) {
-        respond(400, ['error' => 'Invalid request payload.']);
+    if (!is_array($payload)) {
+        respond(400, ['error' => 'Invalid request payload']);
     }
-    $payload['id'] = generateId();
-    $payload['created_at'] = $payload['created_at'] ?? date('Y-m-d H:i:s');
-    $items[] = $payload;
-    saveJson($filename, $items);
-    respond(201, $payload);
+    $fieldNames = [];
+    $values = [];
+    $types = '';
+    foreach ($columns as $column) {
+        $fieldNames[] = $column;
+        if ($column === 'published' || $column === 'newsletterSent') {
+            $values[] = !empty($payload[$column]) ? 1 : 0;
+            $types .= 'i';
+        } elseif ($column === 'price') {
+            $values[] = isset($payload['price']) ? floatval($payload['price']) : 0.0;
+            $types .= 'd';
+        } elseif ($column === 'published_at') {
+            $values[] = $payload['published_at'] ?? ($payload['date'] ?? null);
+            $types .= 's';
+        } else {
+            $values[] = $payload[$column] ?? null;
+            $types .= 's';
+        }
+    }
+    $placeholders = implode(', ', array_fill(0, count($fieldNames), '?'));
+    safeQuery($conn, "INSERT INTO {$table} (" . implode(', ', $fieldNames) . ") VALUES ({$placeholders})", $values, $types);
+    $insertId = $conn->insert_id;
+    $row = fetch_one($conn, "SELECT * FROM {$table} WHERE id = ?", [$insertId], 'i');
+    respond(201, $row ?: ['id' => $insertId, 'success' => true]);
 }
 
 if ($method === 'PUT') {
     if ($id === null) {
-        respond(400, ['error' => 'Item ID is required.']);
+        respond(400, ['error' => 'Item ID is required']);
     }
-    $payload = getRequestBody();
     if (!is_array($payload)) {
-        respond(400, ['error' => 'Invalid request payload.']);
+        respond(400, ['error' => 'Invalid request payload']);
     }
-    $index = findItemIndex($items, $id);
-    if ($index === null) {
-        respond(404, ['error' => 'Item not found.']);
+    $fields = [];
+    $values = [];
+    $types = '';
+    foreach ($columns as $column) {
+        if (!array_key_exists($column, $payload)) {
+            continue;
+        }
+        $fields[] = "$column = ?";
+        if ($column === 'published' || $column === 'newsletterSent') {
+            $values[] = !empty($payload[$column]) ? 1 : 0;
+            $types .= 'i';
+        } elseif ($column === 'price') {
+            $values[] = floatval($payload['price']);
+            $types .= 'd';
+        } else {
+            $values[] = $payload[$column];
+            $types .= 's';
+        }
     }
-    $items[$index] = array_merge($items[$index], $payload, ['id' => $id]);
-    saveJson($filename, $items);
-    respond(200, $items[$index]);
+    if (empty($fields)) {
+        respond(400, ['error' => 'No fields to update']);
+    }
+    $values[] = $id;
+    $types .= 'i';
+    safeQuery($conn, "UPDATE {$table} SET " . implode(', ', $fields) . " WHERE id = ?", $values, $types);
+    $row = fetch_one($conn, "SELECT * FROM {$table} WHERE id = ?", [$id], 'i');
+    respond(200, $row ?: ['success' => true]);
 }
 
 if ($method === 'DELETE') {
     if ($id === null) {
-        respond(400, ['error' => 'Item ID is required.']);
+        respond(400, ['error' => 'Item ID is required']);
     }
-    $index = findItemIndex($items, $id);
-    if ($index === null) {
-        respond(404, ['error' => 'Item not found.']);
-    }
-    array_splice($items, $index, 1);
-    saveJson($filename, $items);
+    safeQuery($conn, "DELETE FROM {$table} WHERE id = ?", [$id], 'i');
     respond(200, ['success' => true, 'id' => $id]);
 }
 
-respond(405, ['error' => 'Method not allowed.']);
+respond(405, ['error' => 'Method not allowed']);

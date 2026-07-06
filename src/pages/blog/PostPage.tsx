@@ -1,6 +1,8 @@
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useSiteData } from '../../context/SiteDataContext';
 import { translations } from '../../i18n/translations';
+import { useMetaTags } from '../../utils/useMetaTags';
+import { mockAuthors } from '../../mocks/authors';
 
 const formatDate = (value: string) => {
   const date = new Date(value);
@@ -15,9 +17,21 @@ export default function BlogPostPage() {
   const t = translations[language].blog;
 
   const post = blogPosts.find((item) => item.id === id && item.published);
+
+  // Set meta tags for SEO
+  useMetaTags({
+    title: post?.title,
+    description: post?.excerpt || post?.title,
+    image: post?.imageUrl,
+    type: 'article',
+  });
+
+  // Use authors from context, fallback to mockAuthors if empty
+  const authorsList = authors && authors.length > 0 ? authors : mockAuthors;
+  
   const author = post
-    ? authors.find((a) => a.id === post.authorId) ||
-      authors.find((a) => a.name?.toLowerCase() === post.author?.toLowerCase()) ||
+    ? authorsList.find((a) => a.id === post.authorId) ||
+      authorsList.find((a) => a.name?.toLowerCase() === post.author?.toLowerCase()) ||
       null
     : null;
 
@@ -87,43 +101,121 @@ export default function BlogPostPage() {
                   <p className="mt-2 text-base font-semibold text-gray-900">{post.category}</p>
                 </div>
               </div>
-              <div className="rounded-2xl overflow-hidden border border-gray-200 bg-white">
-                <div className="p-4">
-                  <p className="text-xs uppercase tracking-[0.2em] text-gray-500">Author</p>
-                  <div className="flex items-center gap-3 mt-2">
-                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center flex-shrink-0 text-white font-bold text-sm overflow-hidden border border-gray-200">
-                  {author?.imageUrl ? (
-                    <img
-                      src={author.imageUrl}
-                      alt={author.name}
-                      className="w-full h-full object-cover"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).style.display = 'none';
-                      }}
-                    />
-                  ) : (
-                    <span>{author?.name?.[0]?.toUpperCase() || post.author?.[0]?.toUpperCase() || 'A'}</span>
-                  )}
+              {author && (
+                <div className="space-y-4">
+                  <div className="bg-gradient-to-r from-slate-500 to-slate-600 rounded-t-2xl p-4">
+                    <h3 className="text-white font-semibold text-lg">About the Author</h3>
+                  </div>
+                  <div className="p-6 bg-white rounded-b-2xl border border-gray-200 text-center space-y-4">
+                    {/* Author Avatar */}
+                    <div className="flex justify-center -mt-12 mb-3">
+                      <div className="w-24 h-24 rounded-full bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center flex-shrink-0 text-white font-bold text-3xl overflow-hidden border-4 border-white shadow-lg">
+                        {author.imageUrl ? (
+                          <img
+                            src={author.imageUrl}
+                            alt={author.name}
+                            className="w-full h-full object-cover"
+                            loading="lazy"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).style.display = 'none';
+                            }}
+                          />
+                        ) : (
+                          <span>{author.name?.[0]?.toUpperCase() || 'A'}</span>
+                        )}
+                      </div>
+                    </div>
+                    
+                    {/* Author Name */}
+                    <div>
+                      <h4 className="text-xl font-bold text-gray-900">{author.name}</h4>
+                      {author.subtitle && (
+                        <p className="text-sm text-gray-600 mt-1">{author.subtitle}</p>
+                      )}
+                    </div>
+                    
+                    {/* Metadata */}
+                    <div className="space-y-2 text-sm text-gray-600 border-y border-gray-200 py-3">
+                      {author.joinDate && (
+                        <p><i className="ri-calendar-line text-orange-600 mr-2"></i>Member since {author.joinDate}</p>
+                      )}
+                      {author.lastActive && (
+                        <p><i className="ri-time-line text-orange-600 mr-2"></i>Last active: {author.lastActive}</p>
+                      )}
+                    </div>
+                    
+                    {/* Author Bio */}
+                    {author.bio && (
+                      <p className="text-sm text-gray-700 leading-relaxed text-left">
+                        {author.bio}
+                      </p>
+                    )}
+                    
+                    {/* Social Media Links */}
+                    {(author.linkedIn || author.upwork) && (
+                      <div className="flex justify-center gap-3 pt-2">
+                        {author.linkedIn && (
+                          <a
+                            href={author.linkedIn}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center hover:bg-blue-700 transition-colors"
+                            title="LinkedIn"
+                          >
+                            <i className="ri-linkedin-fill text-lg"></i>
+                          </a>
+                        )}
+                        {author.upwork && (
+                          <a
+                            href={author.upwork}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="w-10 h-10 rounded-full bg-green-600 text-white flex items-center justify-center hover:bg-green-700 transition-colors"
+                            title="Upwork"
+                          >
+                            <i className="ri-briefcase-fill text-lg"></i>
+                          </a>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
-                <p className="text-base font-semibold text-gray-900">{author?.name || post.author || 'Unknown author'}</p>
-              </div>
-                </div>
-              </div>
+              )}
             </div>
           </aside>
         </div>
 
         {post.images && post.images.length > 0 && (
-          <section className="space-y-6">
+          <section className="space-y-8 border-t border-gray-100 pt-12">
             <div className="flex items-center justify-between">
-              <h2 className="text-2xl font-black text-gray-900">Image Gallery</h2>
+              <h2 className="text-3xl font-black text-gray-900">Image Gallery</h2>
+              <p className="text-sm text-gray-500">{post.images.length} image{post.images.length !== 1 ? 's' : ''}</p>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-              {post.images.map((image, index) => (
-                <div key={index} className="overflow-hidden rounded-3xl border border-gray-100 bg-gray-50 shadow-sm">
-                  <img src={image} alt={`${post.title} image ${index + 1}`} className="w-full h-64 object-cover object-center" />
-                </div>
-              ))}
+            <div className="space-y-12">
+              {post.images.map((imageData, index) => {
+                const imgUrl = typeof imageData === 'string' ? imageData : imageData.url;
+                const imgDesc = typeof imageData === 'string' ? '' : (imageData.description || '');
+                return (
+                  <div key={index} className="space-y-4">
+                    <div className="overflow-hidden rounded-3xl border border-gray-100 bg-gray-50 shadow-lg hover:shadow-xl transition-shadow">
+                      <img
+                        src={imgUrl}
+                        alt={imgDesc || `${post.title} image ${index + 1}`}
+                        className="w-full h-96 object-cover object-center"
+                        loading="lazy"
+                      />
+                    </div>
+                    {imgDesc && (
+                      <div className="max-w-3xl">
+                        <div
+                          className="prose prose-lg prose-orange max-w-none text-gray-700 text-base leading-relaxed"
+                          dangerouslySetInnerHTML={{ __html: imgDesc }}
+                        />
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </section>
         )}

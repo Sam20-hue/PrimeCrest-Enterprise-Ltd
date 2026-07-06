@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useSiteData } from '../../context/SiteDataContext';
 import { translations } from '../../i18n/translations';
 import { getContactApiEndpoints } from '../../utils/contactApi';
+import { useMetaTags } from '../../utils/useMetaTags';
 
 const buildServiceDetailUrl = (serviceId: string) => {
   const base = typeof window !== 'undefined' ? window.location.origin : '';
@@ -13,6 +14,14 @@ const buildServiceDetailUrl = (serviceId: string) => {
 export default function ServicesPage() {
   const { services, settings, language } = useSiteData();
   const t = translations[language].services;
+  
+  // Set meta tags for services page
+  useMetaTags({
+    title: 'Services',
+    description: 'Explore our comprehensive security and technology solutions. From physical security to digital infrastructure, we provide tailored services for your business needs.',
+    type: 'website',
+  });
+
   const phoneNumber = settings.phone?.replace(/[^+\d]/g, '') || '';
   const [selected, setSelected] = useState<string | null>(null);
   const [modalService, setModalService] = useState<any>(null);
@@ -189,7 +198,7 @@ export default function ServicesPage() {
               </div>
               <div className="p-7">
                 <h2 className="text-xl font-black text-gray-900 mb-3">{service.title}</h2>
-                <p className="text-gray-500 text-sm leading-relaxed mb-5">{service.description}</p>
+                <div className="text-gray-500 text-sm leading-relaxed mb-5" dangerouslySetInnerHTML={{ __html: service.description || '' }} />
 
                 {/* Features */}
                 <div className="grid grid-cols-2 gap-2 mb-5">

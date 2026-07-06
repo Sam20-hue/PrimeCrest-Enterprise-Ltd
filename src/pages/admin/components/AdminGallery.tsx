@@ -70,7 +70,7 @@ export default function AdminGallery() {
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     }
-  }, [setGallery]);
+  }, [gallery, setGallery]);
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();

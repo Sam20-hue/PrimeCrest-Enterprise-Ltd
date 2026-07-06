@@ -12,6 +12,7 @@ export const mockBlogPosts = [
       "https://readdy.ai/api/search-image?query=security%20control%20room%20with%20multiple%20video%20feeds%20displayed&width=1200&height=800"
     ],
     author: "PRIMECREST Security Team",
+    authorId: "1",
     published: true
   },
   {
@@ -27,6 +28,7 @@ export const mockBlogPosts = [
       "https://readdy.ai/api/search-image?query=vault%20engineer%20conducting%20a%20site%20survey%20for%20bank%20security&width=1200&height=800"
     ],
     author: "PRIMECREST Engineering Team",
+    authorId: "2",
     published: true
   },
   {
@@ -42,6 +44,7 @@ export const mockBlogPosts = [
       "https://readdy.ai/api/search-image?query=employee%20using%20biometric%20access%20control%20in%20a%20professional%20environment&width=1200&height=800"
     ],
     author: "PRIMECREST Tech Team",
+    authorId: "3",
     published: true
   },
   {
@@ -56,7 +59,8 @@ export const mockBlogPosts = [
       "https://readdy.ai/api/search-image?query=server%20rack%20and%20office%20IT%20setup%20for%20a%20small%20business&width=1200&height=800",
       "https://readdy.ai/api/search-image?query=network%20cabling%20and%20desktop%20workstations%20in%20a%20modern%20office&width=1200&height=800"
     ],
-    author: "PRIMECREST IT Team",
+    author: "PRIMECREST Tech Team",
+    authorId: "3",
     published: true
   }
 ];

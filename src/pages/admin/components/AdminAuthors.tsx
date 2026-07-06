@@ -29,20 +29,54 @@ export default function AdminAuthors() {
     setShowForm(true);
   };
 
-  const handleSave = () => {
+  const reloadAuthors = async () => {
+    const result = await mysqlService.getAuthors();
+    if (result.ok && Array.isArray(result.data)) {
+      setAuthors(result.data as Author[]);
+    } else {
+      console.error('[AdminAuthors] failed to reload authors from backend', result.error);
+    }
+  };
+
+  const handleSave = async () => {
     if (!editing || !editing.name) return;
-    const updated = authors.find((a) => a.id === editing.id)
-      ? authors.map((a) => (a.id === editing.id ? editing : a))
-      : [editing, ...authors];
-    setAuthors(updated);
+
+    const isUpdate = authors.some((a) => a.id === editing.id);
+
+    try {
+      if (isUpdate) {
+        const result = await mysqlService.updateAuthor(editing.id, editing);
+        if (!result.ok || !result.data) {
+          throw new Error(result.error || 'Update author failed');
+        }
+      } else {
+        const result = await mysqlService.createAuthor(editing);
+        if (!result.ok || !result.data) {
+          throw new Error(result.error || 'Create author failed');
+        }
+      }
+      await reloadAuthors();
+    } catch (error) {
+      console.error('[AdminAuthors] author save failed, backend not persisted', error);
+      return;
+    }
+
     setShowForm(false);
     setEditing(null);
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };
 
-  const handleDelete = (id: string) => {
-    setAuthors(authors.filter((a) => a.id !== id));
+  const handleDelete = async (id: string) => {
+    try {
+      const result = await mysqlService.deleteAuthor(id);
+      if (!result.ok) {
+        throw new Error(result.error || 'Delete author failed');
+      }
+      await reloadAuthors();
+    } catch (error) {
+      console.error('[AdminAuthors] delete author failed', error);
+    }
   };
 
   const processFiles = useCallback(async (files: FileList | null) => {
@@ -131,6 +165,61 @@ export default function AdminAuthors() {
               </div>
 
               <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Subtitle</label>
+                <input
+                  type="text"
+                  value={editing.subtitle || ''}
+                  onChange={(e) => setEditing({ ...editing, subtitle: e.target.value })}
+                  placeholder="e.g., Security Specialist"
+                  className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-orange-400"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Join Date</label>
+                <input
+                  type="text"
+                  value={editing.joinDate || ''}
+                  onChange={(e) => setEditing({ ...editing, joinDate: e.target.value })}
+                  placeholder="e.g., January 2015"
+                  className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-orange-400"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Last Active</label>
+                <input
+                  type="text"
+                  value={editing.lastActive || ''}
+                  onChange={(e) => setEditing({ ...editing, lastActive: e.target.value })}
+                  placeholder="e.g., Jul 3, 2026"
+                  className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-orange-400"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">LinkedIn Profile URL</label>
+                <input
+                  type="url"
+                  value={editing.linkedIn || ''}
+                  onChange={(e) => setEditing({ ...editing, linkedIn: e.target.value })}
+                  placeholder="https://www.linkedin.com/company/primecrest-enterprise"
+                  className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-orange-400"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Upwork Profile URL</label>
+                <input
+                  type="url"
+                  value={editing.upwork || ''}
+                  onChange={(e) => setEditing({ ...editing, upwork: e.target.value })}
+                  placeholder="https://www.upwork.com/ag/primecrest"
+                  className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-orange-400"
+                />
+              </div>
+
+              <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">Author Image</label>
                 <div
                   ref={dropZoneRef}
@@ -209,7 +298,17 @@ export default function AdminAuthors() {
             <div key={author.id} className="rounded-xl border border-gray-100 bg-white p-6">
               <div className="flex items-start gap-4 mb-4">
                 {author.imageUrl ? (
-                  <img src={author.imageUrl} alt={author.name} className="w-16 h-16 rounded-full object-cover" />
+                  <img
+                    src={author.imageUrl}
+                    alt={author.name}
+                    className="w-16 h-16 rounded-full object-cover"
+                    loading="lazy"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).style.display = 'none';
+                      const parent = (e.target as HTMLImageElement).parentElement;
+                      if (parent) parent.innerHTML = '<div class="w-16 h-16 rounded-full bg-gray-200 flex items-center justify-center"><i class="ri-user-line text-2xl text-gray-400" /></div>';
+                    }}
+                  />
                 ) : (
                   <div className="w-16 h-16 rounded-full bg-gray-200 flex items-center justify-center">
                     <i className="ri-user-line text-2xl text-gray-400" />
@@ -217,6 +316,8 @@ export default function AdminAuthors() {
                 )}
                 <div className="flex-1">
                   <h3 className="font-semibold text-gray-900 text-sm">{author.name}</h3>
+                  {author.subtitle && <p className="text-xs text-gray-500">{author.subtitle}</p>}
+                  {author.joinDate && <p className="text-xs text-gray-400 mt-1">Member since {author.joinDate}</p>}
                   {author.bio && <p className="text-xs text-gray-500 mt-1 line-clamp-2">{author.bio}</p>}
                 </div>
               </div>

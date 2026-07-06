@@ -35,13 +35,13 @@ export default function AdminLogin({ onLogin }: AdminLoginProps) {
         setIs2faSetup(true);
         localStorage.setItem('pc_2fa_setup', 'true');
         localStorage.setItem('pc_2fa_setup_email', currentEmail);
-      } else if (!statusRes.ok && savedLocal && localEmailMatches) {
-        setIs2faSetup(true);
-        setError('2FA server unavailable, using local setup state fallback.');
       } else {
         setIs2faSetup(false);
         localStorage.removeItem('pc_2fa_setup');
         localStorage.removeItem('pc_2fa_setup_email');
+        if (!statusRes.ok) {
+          setError('Unable to verify 2FA status. Please try again or contact support.');
+        }
       }
       setIs2faChecking(false);
     };
@@ -62,7 +62,10 @@ export default function AdminLogin({ onLogin }: AdminLoginProps) {
       return;
     }
 
-    if (email.trim() !== (settings.adminEmail || 'samsonakula3@gmail.com')) {
+    const normalizedEmail = email.trim().toLowerCase();
+    const normalizedAdminEmail = (settings.adminEmail || 'samsonakula3@gmail.com').trim().toLowerCase();
+
+    if (normalizedEmail !== normalizedAdminEmail) {
       setError('Email or password is incorrect.');
       return;
     }
@@ -146,6 +149,29 @@ export default function AdminLogin({ onLogin }: AdminLoginProps) {
       setError(`${response.error || 'Invalid token. Please try again.'} If this continues, press Reset 2FA and scan the QR code again.`);
       setStatus('');
     }
+  };
+
+  const handleReset2fa = async () => {
+    const authEmail = email.trim() || settings.adminEmail || 'samsonakula3@gmail.com';
+    await mysqlService.reset2fa(authEmail);
+    
+    setToken('');
+    setSecret('');
+    setQrCode('');
+    setOtpauthUrl('');
+    setError('');
+    setStatus('2FA has been reset. Please login again to set it up.');
+    setStep('password');
+    setEmail('');
+    setPassword('');
+    setIs2faSetup(false); // Crucial: Mark as NOT set up so next login triggers setup
+    localStorage.removeItem('pc_2fa_setup');
+    localStorage.removeItem('pc_2fa_setup_email');
+    
+    // Reset to initial state after 2 seconds
+    setTimeout(() => {
+      setStatus('');
+    }, 2000);
   };
 
   return (
@@ -247,6 +273,13 @@ export default function AdminLogin({ onLogin }: AdminLoginProps) {
             >
               Confirm Setup
             </button>
+            <button
+              type="button"
+              onClick={handleReset2fa}
+              className="w-full py-2 bg-gray-800 text-gray-300 font-semibold rounded-lg hover:bg-gray-700 transition-colors cursor-pointer text-sm"
+            >
+              Reset and Start Over
+            </button>
           </div>
         )}
 
@@ -269,6 +302,13 @@ export default function AdminLogin({ onLogin }: AdminLoginProps) {
                 className="w-full py-3 bg-orange-600 text-white font-bold rounded-lg hover:bg-orange-700 transition-colors cursor-pointer"
               >
                 Verify and Access
+              </button>
+              <button
+                type="button"
+                onClick={handleReset2fa}
+                className="w-full py-2 bg-gray-800 text-gray-300 font-semibold rounded-lg hover:bg-gray-700 transition-colors cursor-pointer text-sm"
+              >
+                Reset 2FA
               </button>
             </form>
           </div>

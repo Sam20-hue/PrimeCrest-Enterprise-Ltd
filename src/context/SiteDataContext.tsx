@@ -5,6 +5,7 @@ import { mockGalleryItems } from '../mocks/gallery';
 import { mockBlogPosts } from '../mocks/blog';
 import { mockTestimonials } from '../mocks/testimonials';
 import { mockTeam } from '../mocks/team';
+import { mockAuthors } from '../mocks/authors';
 import type { Lang } from '../i18n/translations';
 
 export interface SocialMedia {
@@ -32,6 +33,7 @@ export interface SiteSettings {
   email: string;
   address: string;
   aboutText: string;
+  briefExplanation: string;
   adminPassword: string;
   adminEmail: string;
   heroTitle: string;
@@ -70,7 +72,7 @@ export interface BlogPost {
   date: string;
   category: string;
   imageUrl: string;
-  images?: string[];
+  images?: Array<{ url: string; description?: string }>;
   author: string;
   authorId?: string;
   published: boolean;
@@ -97,6 +99,11 @@ export interface Author {
   name: string;
   imageUrl: string;
   bio?: string;
+  subtitle?: string;
+  joinDate?: string;
+  lastActive?: string;
+  linkedIn?: string;
+  upwork?: string;
 }
 
 export interface Contact {
@@ -148,6 +155,7 @@ const defaultSettings: SiteSettings = {
   phone: '0721579821',
   address: 'Nairobi, Kenya',
   aboutText: 'PRIMECREST ENTERPRISE LTD is a leading security and technology company providing comprehensive solutions across Kenya. With years of experience, we deliver professional CCTV installations, vault engineering, biometric systems, alarm installations, and IT infrastructure for banks, Saccos, businesses, and homes.',
+  briefExplanation: 'Professional security and technology solutions tailored to your business needs. From concept to installation, we deliver excellence.',
   adminPassword: 'admin123',
   adminEmail: 'samsonakula3@gmail.com',
   heroTitle: 'Enterprise Security & Technology Solutions',
@@ -213,18 +221,29 @@ export function SiteDataProvider({ children }: { children: ReactNode }) {
     const validLangs: Lang[] = ['en', 'fr', 'es', 'ar', 'de', 'pt'];
     return validLangs.includes(stored) ? stored : 'en';
   });
-  const [authors, setAuthorsState] = useState<Author[]>(() => loadFromStorage('pc_authors', []));
+  const [authors, setAuthorsState] = useState<Author[]>(() => loadFromStorage('pc_authors', mockAuthors));
 
-  const syncToApi = async (newSettings: SiteSettings, newServices: Service[], newGallery: GalleryItem[], newBlog: BlogPost[], newTestimonials: Testimonial[], newTeam: TeamMember[]) => {
+  const syncToApi = async (
+    newSettings: SiteSettings,
+    newServices: Service[],
+    newGallery: GalleryItem[],
+    newBlog: BlogPost[],
+    newTestimonials: Testimonial[],
+    newTeam: TeamMember[],
+    newAuthors: Author[],
+    newSubscribers: string[]
+  ) => {
     try {
       await mysqlService.syncAll({
         settings: newSettings,
         services: newServices,
         gallery: newGallery,
         blog: newBlog,
+        authors: newAuthors,
+        team: newTeam,
         products: [],
         testimonials: newTestimonials,
-        team: newTeam,
+        subscribers: newSubscribers,
       });
     } catch {
       // ignore sync failures (fallback on local storage)
@@ -234,7 +253,7 @@ export function SiteDataProvider({ children }: { children: ReactNode }) {
   const updateSettings = (s: SiteSettings) => {
     setSettings(s);
     localStorage.setItem('pc_settings', JSON.stringify(s));
-    syncToApi(s, services, gallery, blogPosts, testimonials, team);
+    syncToApi(s, services, gallery, blogPosts, testimonials, team, authors, subscribers);
   };
 
   const addSubscriber = async (email: string): Promise<boolean> => {
@@ -264,31 +283,31 @@ export function SiteDataProvider({ children }: { children: ReactNode }) {
   const setServices = (s: Service[]) => {
     setServicesState(s);
     localStorage.setItem('pc_services', JSON.stringify(s));
-    syncToApi(settings, s, gallery, blogPosts, testimonials, team);
+    syncToApi(settings, s, gallery, blogPosts, testimonials, team, authors, subscribers);
   };
 
   const setGallery = (g: GalleryItem[]) => {
     setGalleryState(g);
     localStorage.setItem('pc_gallery', JSON.stringify(g));
-    syncToApi(settings, services, g, blogPosts, testimonials, team);
+    syncToApi(settings, services, g, blogPosts, testimonials, team, authors, subscribers);
   };
 
   const setBlogPosts = (p: BlogPost[]) => {
     setBlogPostsState(p);
     localStorage.setItem('pc_blog', JSON.stringify(p));
-    syncToApi(settings, services, gallery, p, testimonials, team);
+    syncToApi(settings, services, gallery, p, testimonials, team, authors, subscribers);
   };
 
   const setTestimonials = (t: Testimonial[]) => {
     setTestimonialsState(t);
     localStorage.setItem('pc_testimonials', JSON.stringify(t));
-    syncToApi(settings, services, gallery, blogPosts, t, team);
+    syncToApi(settings, services, gallery, blogPosts, t, team, authors, subscribers);
   };
 
   const setTeam = (t: TeamMember[]) => {
     setTeamState(t);
     localStorage.setItem('pc_team', JSON.stringify(t));
-    syncToApi(settings, services, gallery, blogPosts, testimonials, t);
+    syncToApi(settings, services, gallery, blogPosts, testimonials, t, authors, subscribers);
   };
 
   const setContacts = (c: Contact[]) => {
@@ -298,11 +317,18 @@ export function SiteDataProvider({ children }: { children: ReactNode }) {
   const setSubscribers = (emails: string[]) => {
     setSubscribersState(emails);
     localStorage.setItem('pc_subscribers', JSON.stringify(emails));
+    syncToApi(settings, services, gallery, blogPosts, testimonials, team, authors, emails);
   };
 
   const setAuthors = (a: Author[]) => {
     setAuthorsState(a);
     localStorage.setItem('pc_authors', JSON.stringify(a));
+    // Sync authors to backend
+    try {
+      syncToApi(settings, services, gallery, blogPosts, testimonials, team, a, subscribers);
+    } catch {
+      // ignore sync failures (fallback on local storage)
+    }
   };
 
   const setLanguage = (lang: Lang) => {
@@ -331,68 +357,69 @@ export function SiteDataProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const loadRemoteData = async () => {
-      try {
-        const [settingsRes, servicesRes, galleryRes, blogRes, testimonialsRes, teamRes] = await Promise.all([
-          mysqlService.getSettings(),
-          mysqlService.getServices(),
-          mysqlService.getGallery(),
-          mysqlService.getBlogPosts(),
-          mysqlService.getTestimonials(),
-          mysqlService.getTeam(),
-        ]);
+      const settingsRes = await mysqlService.getSettings();
+      if (settingsRes.ok && settingsRes.data) {
+        const remoteSettings = {
+          ...defaultSettings,
+          ...(settingsRes.data as Partial<SiteSettings>),
+          socialMedia: {
+            ...defaultSettings.socialMedia,
+            ...((settingsRes.data as Partial<SiteSettings>).socialMedia || {}),
+          },
+        };
+        setSettings(remoteSettings);
+        localStorage.setItem('pc_settings', JSON.stringify(remoteSettings));
+      }
 
-        if (settingsRes.ok && settingsRes.data) {
-          const remoteSettings = {
-            ...defaultSettings,
-            ...(settingsRes.data as Partial<SiteSettings>),
-            socialMedia: {
-              ...defaultSettings.socialMedia,
-              ...((settingsRes.data as Partial<SiteSettings>).socialMedia || {}),
-            },
-          };
-          setSettings(remoteSettings);
-          localStorage.setItem('pc_settings', JSON.stringify(remoteSettings));
-        }
+      const servicesRes = await mysqlService.getServices();
+      if (servicesRes.ok && Array.isArray(servicesRes.data)) {
+        setServicesState(servicesRes.data);
+        localStorage.setItem('pc_services', JSON.stringify(servicesRes.data));
+      }
 
-        if (servicesRes.ok && Array.isArray(servicesRes.data)) {
-          setServicesState(servicesRes.data);
-          localStorage.setItem('pc_services', JSON.stringify(servicesRes.data));
-        }
+      const galleryRes = await mysqlService.getGallery();
+      if (galleryRes.ok && Array.isArray(galleryRes.data)) {
+        setGalleryState(galleryRes.data);
+        localStorage.setItem('pc_gallery', JSON.stringify(galleryRes.data));
+      }
 
-        if (galleryRes.ok && Array.isArray(galleryRes.data)) {
-          setGalleryState(galleryRes.data);
-          localStorage.setItem('pc_gallery', JSON.stringify(galleryRes.data));
-        }
+      const blogRes = await mysqlService.getBlogPosts();
+      if (blogRes.ok && Array.isArray(blogRes.data)) {
+        setBlogPostsState(blogRes.data);
+        localStorage.setItem('pc_blog', JSON.stringify(blogRes.data));
+      }
 
-        if (blogRes.ok && Array.isArray(blogRes.data)) {
-          setBlogPostsState(blogRes.data);
-          localStorage.setItem('pc_blog', JSON.stringify(blogRes.data));
-        }
+      const testimonialsRes = await mysqlService.getTestimonials();
+      if (testimonialsRes.ok && Array.isArray(testimonialsRes.data)) {
+        setTestimonialsState(testimonialsRes.data);
+        localStorage.setItem('pc_testimonials', JSON.stringify(testimonialsRes.data));
+      }
 
-        if (testimonialsRes.ok && Array.isArray(testimonialsRes.data)) {
-          setTestimonialsState(testimonialsRes.data);
-          localStorage.setItem('pc_testimonials', JSON.stringify(testimonialsRes.data));
-        }
+      const teamRes = await mysqlService.getTeam();
+      if (teamRes.ok && Array.isArray(teamRes.data)) {
+        setTeamState(teamRes.data);
+        localStorage.setItem('pc_team', JSON.stringify(teamRes.data));
+      }
 
-        if (teamRes.ok && Array.isArray(teamRes.data)) {
-          setTeamState(teamRes.data);
-          localStorage.setItem('pc_team', JSON.stringify(teamRes.data));
-        }
+      const authorsRes = await mysqlService.getAuthors();
+      if (authorsRes.ok && Array.isArray(authorsRes.data)) {
+        setAuthorsState(authorsRes.data);
+        localStorage.setItem('pc_authors', JSON.stringify(authorsRes.data));
+      }
 
-        const subscribersRes = await mysqlService.getSubscribers();
-        if (subscribersRes.ok && Array.isArray(subscribersRes.data)) {
-          const remoteSubscribers = subscribersRes.data.filter((item) => typeof item === 'string');
-          if (remoteSubscribers.length > 0) {
-            setSubscribersState(remoteSubscribers);
-            localStorage.setItem('pc_subscribers', JSON.stringify(remoteSubscribers));
-          }
+      const subscribersRes = await mysqlService.getSubscribers();
+      if (subscribersRes.ok && Array.isArray(subscribersRes.data)) {
+        const remoteSubscribers = subscribersRes.data.filter((item) => typeof item === 'string');
+        if (remoteSubscribers.length > 0) {
+          setSubscribersState(remoteSubscribers);
+          localStorage.setItem('pc_subscribers', JSON.stringify(remoteSubscribers));
         }
-      } catch {
-        // ignore backend load failures and continue with local state
       }
     };
 
-    loadRemoteData();
+    loadRemoteData().catch((error) => {
+      console.warn('[SiteData] loadRemoteData failed:', error);
+    });
   }, []);
 
   return (
@@ -426,6 +453,7 @@ export function SiteDataProvider({ children }: { children: ReactNode }) {
   );
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useSiteData() {
   const ctx = useContext(SiteDataContext);
   if (!ctx) throw new Error('useSiteData must be used inside SiteDataProvider');

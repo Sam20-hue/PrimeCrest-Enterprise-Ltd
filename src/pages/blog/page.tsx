@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useSiteData } from '../../context/SiteDataContext';
 import { translations } from '../../i18n/translations';
+import { useMetaTags } from '../../utils/useMetaTags';
 
 const formatDate = (value: string) => {
   const date = new Date(value);
@@ -14,6 +15,13 @@ export default function BlogPage() {
   const t = translations[language].blog;
   const [activeCategory, setActiveCategory] = useState('All');
   const [activeAuthor, setActiveAuthor] = useState('All');
+
+  // Set meta tags for blog page
+  useMetaTags({
+    title: 'Blog',
+    description: 'Read latest articles and insights from Primecrest Enterprise about security solutions, technology trends, and industry updates.',
+    type: 'website',
+  });
 
   const publishedPosts = blogPosts.filter((post) => post.published);
   const categories = ['All', ...Array.from(new Set(publishedPosts.map((p) => p.category)))];
@@ -106,6 +114,10 @@ export default function BlogPage() {
                         src={authors.find((a) => a.id === post.authorId)?.imageUrl || ''}
                         alt={authors.find((a) => a.id === post.authorId)?.name || post.author}
                         className="w-5 h-5 rounded-full object-cover"
+                        loading="lazy"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).style.display = 'none';
+                        }}
                       />
                     )}
                     <i className="ri-user-line" />{authors.find((a) => a.id === post.authorId)?.name || post.author || 'Unknown author'}

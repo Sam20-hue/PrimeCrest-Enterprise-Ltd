@@ -214,7 +214,7 @@ export default function Footer() {
               </button>
             </div>
             <div className="p-6 text-sm leading-relaxed text-gray-700">
-              {policyModal === 'privacy' ? settings.privacyPolicy : settings.termsOfService}
+              <div dangerouslySetInnerHTML={{ __html: policyModal === 'privacy' ? settings.privacyPolicy || '' : settings.termsOfService || '' }} />
             </div>
           </div>
         </div>

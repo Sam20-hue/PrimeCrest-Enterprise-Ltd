@@ -45,24 +45,28 @@ export default function AdminSettings() {
       reader.readAsDataURL(file);
     });
 
-    // Apply client-side sharpening/contrast preview before upload
-    const processed = await applyImageProcessing(dataUrl, form.logoSharpness || 0, form.logoContrast || 1);
+    const shouldProcess = (form.logoSharpness || 0) !== 0 || (form.logoContrast || 1) !== 1;
+    const uploadFile = shouldProcess
+      ? await (async () => {
+          const processed = await applyImageProcessing(dataUrl, form.logoSharpness || 0, form.logoContrast || 1);
+          const blob = await (await fetch(processed)).blob();
+          return new File([blob], file.name, { type: blob.type });
+        })()
+      : file;
 
-    // Try uploading processed image to backend; fallback to using processed data URL
+    // Upload original or processed image file to backend
     try {
-      const blob = await (await fetch(processed)).blob();
-      const processedFile = new File([blob], file.name, { type: blob.type });
-      const apiResult = await mysqlService.uploadImage(processedFile);
+      const apiResult = await mysqlService.uploadImage(uploadFile);
       if (apiResult.ok && apiResult.data?.url) {
         setLogoPreview(apiResult.data.url);
         setForm((prev) => ({ ...prev, logoUrl: apiResult.data?.url }));
       } else {
-        setLogoPreview(processed);
-        setForm((prev) => ({ ...prev, logoUrl: processed }));
+        setLogoPreview(dataUrl);
+        setForm((prev) => ({ ...prev, logoUrl: dataUrl }));
       }
     } catch {
-      setLogoPreview(processed);
-      setForm((prev) => ({ ...prev, logoUrl: processed }));
+      setLogoPreview(dataUrl);
+      setForm((prev) => ({ ...prev, logoUrl: dataUrl }));
     } finally {
       setProcessingLogo(false);
     }
@@ -485,6 +489,16 @@ export default function AdminSettings() {
               rows={4}
               maxLength={500}
               placeholder="Company description..."
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">Brief Explanation</label>
+            <RichTextEditor
+              value={form.briefExplanation}
+              onChange={(v) => setForm({ ...form, briefExplanation: v })}
+              rows={3}
+              maxLength={500}
+              placeholder="A brief explanation of your services or company value proposition..."
             />
           </div>
           <div>

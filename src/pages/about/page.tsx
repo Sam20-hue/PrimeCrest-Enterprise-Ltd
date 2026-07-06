@@ -37,7 +37,7 @@ export default function AboutPage() {
             <div>
               <span className="text-orange-600 font-semibold text-sm tracking-widest uppercase">Our Story</span>
               <h2 className="text-4xl font-black text-gray-900 mt-3 mb-6">Built on Trust, Delivered with Excellence</h2>
-              <p className="text-gray-600 leading-relaxed mb-6 text-base">{settings.aboutText}</p>
+              <div className="text-gray-600 leading-relaxed mb-6 text-base" dangerouslySetInnerHTML={{ __html: settings.aboutText || '' }} />
               <p className="text-gray-600 leading-relaxed text-base">
                 From our headquarters in Nairobi, we serve clients across Kenya providing end-to-end security and technology solutions. Every project, large or small, receives the same level of attention, expertise, and commitment to quality.
               </p>
@@ -110,8 +110,11 @@ export default function AboutPage() {
                       src={member.imageUrl}
                       alt={member.name}
                       className="w-full h-full object-cover object-top"
+                      loading="lazy"
                       onError={(e) => {
-                        (e.target as HTMLImageElement).src = '';
+                        (e.target as HTMLImageElement).style.display = 'none';
+                        const parent = (e.target as HTMLImageElement).parentElement;
+                        if (parent) parent.innerHTML = '<div class="w-full h-full flex items-center justify-center text-gray-400"><i class="ri-user-line text-4xl" /></div>';
                       }}
                     />
                   ) : (

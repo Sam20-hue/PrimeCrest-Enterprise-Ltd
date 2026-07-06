@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: GET, POST, DELETE, OPTIONS');
@@ -9,9 +9,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit;
 }
 
-function getContactsStoragePath() {
-    return __DIR__ . '/contacts.json';
-}
+require_once __DIR__ . '/db.php';
 
 function respond($code, $payload) {
     http_response_code($code);
@@ -19,38 +17,16 @@ function respond($code, $payload) {
     exit;
 }
 
-function loadContactsFromFile() {
-    $path = getContactsStoragePath();
-    if (!file_exists($path)) {
-        return [];
-    }
-
-    $raw = file_get_contents($path);
-    $data = json_decode($raw, true);
-    return is_array($data) ? $data : [];
-}
-
 $method = $_SERVER['REQUEST_METHOD'];
 
 if ($method === 'DELETE') {
     $id = $_GET['id'] ?? null;
-    if (!$id) {
+    if ($id === null || !ctype_digit((string)$id)) {
         respond(400, ['error' => 'Contact id is required for deletion.']);
     }
-
-    $contacts = loadContactsFromFile();
-    $filtered = array_values(array_filter($contacts, function ($contact) use ($id) {
-        return (string) $contact['id'] !== (string) $id;
-    }));
-
-    file_put_contents(getContactsStoragePath(), json_encode($filtered, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
-    respond(200, ['success' => true, 'id' => $id]);
+    safeQuery($conn, 'DELETE FROM contacts WHERE id = ?', [(int)$id], 'i');
+    respond(200, ['success' => true, 'id' => (int)$id]);
 }
 
-$contacts = loadContactsFromFile();
-
-usort($contacts, function ($a, $b) {
-    return strtotime($b['created_at']) <=> strtotime($a['created_at']);
-});
-
+$contacts = fetch_all_assoc($conn, 'SELECT * FROM contacts ORDER BY created_at DESC');
 respond(200, $contacts);

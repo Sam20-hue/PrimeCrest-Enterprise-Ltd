@@ -84,6 +84,7 @@ All data stored in localStorage (no backend required):
 | features | string[] | Key features |
 
 ## 5. Backend / Third-party Integration Plan
+- PHP backend only: Deploy `php-backend/api/` and do not use Node.js for backend deployment
 - Supabase: Not needed (localStorage for all data)
 - Shopify: Not needed
 - Stripe: Not needed

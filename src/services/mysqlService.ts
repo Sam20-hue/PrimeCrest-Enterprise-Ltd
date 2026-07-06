@@ -6,8 +6,7 @@
  * connects to a REST API backend that wraps your MySQL database.
  *
  * SETUP INSTRUCTIONS:
- * 1. Deploy a simple REST API server (Node.js/Express, PHP, Python/Flask, etc.)
- *    that connects to your MySQL database.
+ * 1. Deploy a PHP REST API backend that connects to your MySQL database.
  * 2. Set the API base URL in the Admin Panel ? Settings ? MySQL API URL field.
  * 3. Your API should expose endpoints like:
  *    GET    /api/services         ? list services
@@ -16,32 +15,13 @@
  *    DELETE /api/services/:id     ? delete service
  *    (Same pattern for gallery, blog, products, settings, testimonials)
  *
- * EXAMPLE Node.js/Express + MySQL backend snippet:
+ * EXAMPLE PHP backend guidance:
  * ----------------------------------------------
- * const express = require('express');
- * const mysql = require('mysql2/promise');
- * const cors = require('cors');
- * const app = express();
- * app.use(cors());
- * app.use(express.json());
- *
- * const pool = mysql.createPool({
- *   host: 'localhost',
- *   user: 'your_user',
- *   password: 'your_password',
- *   database: 'primecrest_db',
- * });
- *
- * app.get('/api/services', async (req, res) => {
- *   const [rows] = await pool.query('SELECT * FROM services');
- *   res.json(rows);
- * });
- * // ... repeat for other tables
- * app.listen(3001);
+ * Use the PHP backend in `php-backend/api/` and configure `api/config.php`.
+ * Make sure the API returns JSON and supports the same REST routes.
  */
 
 import type { Contact } from '../context/SiteDataContext';
-import { applyWatermarkToImage } from '../utils/imageUpload';
 
 const getDefaultApiUrl = (): string => {
   if (typeof window === 'undefined') return 'http://localhost:3002';
@@ -111,9 +91,12 @@ async function request<T>(
   body?: unknown
 ): Promise<ApiResponse<T>> {
   const baseUrl = getApiUrl() || '/api';
-  const requestUrl = baseUrl.endsWith('/api')
-    ? baseUrl.replace(/\/api$/, '') + path
-    : baseUrl + path;
+  const cleanedBaseUrl = baseUrl.replace(/\/+$/, '');
+  const cleanedPath = path.replace(/^\/+/, '');
+  const requestUrl = cleanedBaseUrl.endsWith('/api')
+    ? `${cleanedBaseUrl}/${cleanedPath.replace(/^api\//, '')}`
+    : `${cleanedBaseUrl}/${cleanedPath}`;
+
   try {
     console.debug('[mysqlService]', method, requestUrl);
     const res = await fetch(requestUrl, {
@@ -122,16 +105,27 @@ async function request<T>(
       body: body ? JSON.stringify(body) : undefined,
       mode: 'cors',
     });
-    if (!res.ok) {
-      const text = await res.text();
-      return { data: null, error: `API Error ${res.status}: ${text}`, ok: false };
+    const text = await res.text();
+    let parsed: any = null;
+    if (text) {
+      try {
+        parsed = JSON.parse(text);
+      } catch {
+        parsed = null;
+      }
     }
-    const data = await res.json();
-    return { data, error: null, ok: true };
+
+    if (!res.ok) {
+      const errorMessage = parsed?.error || text || `HTTP ${res.status}`;
+      console.error('[mysqlService] API error response:', method, requestUrl, res.status, errorMessage);
+      return { data: null, error: `API Error ${res.status}: ${errorMessage}`, ok: false };
+    }
+
+    return { data: parsed, error: null, ok: true };
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Network error';
-    const errMsg = `Network error contacting ${baseUrl}${path}: ${msg}`;
-    console.error('[mysqlService] request failed:', method, `${baseUrl}${path}`, msg);
+    const errMsg = `Network error contacting ${requestUrl}: ${msg}`;
+    console.error('[mysqlService] request failed:', method, requestUrl, msg);
     return { data: null, error: errMsg, ok: false };
   }
 }
@@ -163,6 +157,12 @@ export const mysqlService = {
   // -- Team --------------------------------------------------------------
   getTeam: () => request('GET', '/api/team'),
 
+  // -- Authors -----------------------------------------------------------
+  getAuthors: () => request('GET', '/api/authors'),
+  createAuthor: (data: unknown) => request('POST', '/api/authors', data),
+  updateAuthor: (id: string, data: unknown) => request('PUT', `/api/authors/${id}`, data),
+  deleteAuthor: (id: string) => request('DELETE', `/api/authors/${id}`),
+
   // -- Products --------------------------------------------------------------
   getProducts: () => request('GET', '/api/products'),
   createProduct: (data: unknown) => request('POST', '/api/products', data),
@@ -191,13 +191,13 @@ export const mysqlService = {
   // -- File upload -----------------------------------------------------------
   uploadImage: async (file: File): Promise<ApiResponse<{ url: string }>> => {
     const baseUrl = getApiUrl() || '/api';
-    const uploadUrl = baseUrl.endsWith('/api')
-      ? baseUrl.replace(/\/api$/, '') + '/api/upload'
-      : `${baseUrl}/api/upload`;
+    const cleanedBaseUrl = baseUrl.replace(/\/+$/, '');
+    const uploadUrl = cleanedBaseUrl.endsWith('/api')
+      ? `${cleanedBaseUrl}/upload`
+      : `${cleanedBaseUrl}/api/upload`;
     try {
-      const uploadFile = await applyWatermarkToImage(file);
       const form = new FormData();
-      form.append('file', uploadFile);
+      form.append('file', file);
       const res = await fetch(uploadUrl, {
         method: 'POST',
         body: form,

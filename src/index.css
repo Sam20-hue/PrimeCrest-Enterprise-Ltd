@@ -1,3 +1,59 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Support for styled content from rich text editor */
+.prose {
+  @apply text-gray-700;
+}
+
+.prose h1,
+.prose h2,
+.prose h3 {
+  @apply text-gray-900 font-bold;
+}
+
+.prose h1 {
+  @apply text-3xl mt-6 mb-3;
+}
+
+.prose h2 {
+  @apply text-2xl mt-5 mb-2;
+}
+
+.prose h3 {
+  @apply text-xl mt-4 mb-2;
+}
+
+.prose p {
+  @apply mb-4 leading-relaxed;
+}
+
+.prose ul,
+.prose ol {
+  @apply ml-6 mb-4;
+}
+
+.prose li {
+  @apply mb-2;
+}
+
+/* Preserve inline styles from rich text editor */
+[contenteditable] span[style*="color"],
+[contenteditable] span[style*="font-family"],
+article span[style*="color"],
+article span[style*="font-family"],
+div[style*="color"] {
+  /* Allow inline styles to override */
+}
+
+/* Ensure fonts from editor are preserved */
+article {
+  font-family: inherit;
+  line-height: 1.6;
+}
+
+/* Support for color changes */
+article span[style] {
+  display: inline;
+}

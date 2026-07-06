@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Test Console</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: monospace; background: #1e1e1e; color: #d4d4d4; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; }
+        h1 { color: #4ec9b0; margin-bottom: 20px; }
+        .test-section { background: #252526; border: 1px solid #3e3e42; padding: 15px; margin-bottom: 15px; border-radius: 4px; }
+        .test-button { 
+            background: #007acc; color: white; border: none; padding: 10px 15px; 
+            margin: 5px 5px 5px 0; cursor: pointer; border-radius: 4px; font-family: monospace;
+        }
+        .test-button:hover { background: #005a9e; }
+        .output { 
+            background: #1e1e1e; border: 1px solid #3e3e42; padding: 10px; 
+            margin-top: 10px; border-radius: 4px; max-height: 300px; overflow-y: auto;
+            color: #4ec9b0;
+        }
+        .success { color: #6a9955; }
+        .error { color: #f48771; }
+        .info { color: #9cdcfe; }
+        .title { color: #ce9178; margin-top: 10px; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 Primecrest API Test Console</h1>
+        
+        <div class="test-section">
+            <h2>Health Check</h2>
+            <button class="test-button" onclick="test('health')">Test Connection</button>
+            <div id="health-output" class="output"></div>
+        </div>
+
+        <div class="test-section">
+            <h2>Settings</h2>
+            <button class="test-button" onclick="test('settings')">Get Settings</button>
+            <button class="test-button" onclick="testSettings()">Test Update</button>
+            <div id="settings-output" class="output"></div>
+        </div>
+
+        <div class="test-section">
+            <h2>Services</h2>
+            <button class="test-button" onclick="test('services')">List Services</button>
+            <button class="test-button" onclick="testCreateService()">Create Test Service</button>
+            <div id="services-output" class="output"></div>
+        </div>
+
+        <div class="test-section">
+            <h2>Blog</h2>
+            <button class="test-button" onclick="test('blog')">List Posts</button>
+            <button class="test-button" onclick="testCreateBlog()">Create Test Post</button>
+            <div id="blog-output" class="output"></div>
+        </div>
+
+        <div class="test-section">
+            <h2>File Upload</h2>
+            <input type="file" id="uploadFile" accept="image/*">
+            <button class="test-button" onclick="testUpload()">Upload Image</button>
+            <div id="upload-output" class="output"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = window.location.origin + '/api';
+
+        async function test(endpoint) {
+            const output = document.getElementById(endpoint + '-output');
+            output.innerHTML = '<span class="info">Testing...</span>';
+            
+            try {
+                const response = await fetch(`${API_URL}/${endpoint}`, {
+                    method: 'GET',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    output.innerHTML = `<span class="success">✓ Success</span>\n${JSON.stringify(data, null, 2)}`;
+                } else {
+                    output.innerHTML = `<span class="error">✗ Error (${response.status})</span>\n${JSON.stringify(data, null, 2)}`;
+                }
+            } catch (error) {
+                output.innerHTML = `<span class="error">✗ Connection Error</span>\n${error.message}`;
+            }
+        }
+
+        async function testSettings() {
+            const output = document.getElementById('settings-output');
+            output.innerHTML = '<span class="info">Updating settings...</span>';
+            
+            try {
+                const response = await fetch(`${API_URL}/settings`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        siteName: 'Primecrest Enterprise LTD',
+                        phone: '+254 123 456 789',
+                        email: 'info@primecrestenterprise.com'
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    output.innerHTML = `<span class="success">✓ Settings Updated</span>\n${JSON.stringify(data, null, 2)}`;
+                } else {
+                    output.innerHTML = `<span class="error">✗ Update Failed</span>\n${JSON.stringify(data, null, 2)}`;
+                }
+            } catch (error) {
+                output.innerHTML = `<span class="error">✗ Error</span>\n${error.message}`;
+            }
+        }
+
+        async function testCreateService() {
+            const output = document.getElementById('services-output');
+            output.innerHTML = '<span class="info">Creating service...</span>';
+            
+            try {
+                const response = await fetch(`${API_URL}/services`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        name: 'Test Service',
+                        description: 'This is a test service',
+                        icon: 'ri-test-tube-line',
+                        price: '5000'
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    output.innerHTML = `<span class="success">✓ Service Created (ID: ${data.id})</span>\n${JSON.stringify(data, null, 2)}`;
+                } else {
+                    output.innerHTML = `<span class="error">✗ Creation Failed</span>\n${JSON.stringify(data, null, 2)}`;
+                }
+            } catch (error) {
+                output.innerHTML = `<span class="error">✗ Error</span>\n${error.message}`;
+            }
+        }
+
+        async function testCreateBlog() {
+            const output = document.getElementById('blog-output');
+            output.innerHTML = '<span class="info">Creating blog post...</span>';
+            
+            try {
+                const response = await fetch(`${API_URL}/blog`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        title: 'Test Blog Post',
+                        excerpt: 'This is a test post',
+                        content: 'This is the full content of the test post',
+                        category: 'Testing',
+                        author: 'Test Author',
+                        published: true,
+                        date: new Date().toISOString().split('T')[0]
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    output.innerHTML = `<span class="success">✓ Post Created (ID: ${data.id})</span>\n${JSON.stringify(data, null, 2)}`;
+                } else {
+                    output.innerHTML = `<span class="error">✗ Creation Failed</span>\n${JSON.stringify(data, null, 2)}`;
+                }
+            } catch (error) {
+                output.innerHTML = `<span class="error">✗ Error</span>\n${error.message}`;
+            }
+        }
+
+        async function testUpload() {
+            const fileInput = document.getElementById('uploadFile');
+            const output = document.getElementById('upload-output');
+            
+            if (!fileInput.files[0]) {
+                output.innerHTML = '<span class="error">✗ No file selected</span>';
+                return;
+            }
+            
+            output.innerHTML = '<span class="info">Uploading...</span>';
+            
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+            
+            try {
+                const response = await fetch(`${API_URL}/upload`, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    output.innerHTML = `<span class="success">✓ Upload Success</span>\nURL: <span class="title">${data.url}</span>\n${JSON.stringify(data, null, 2)}`;
+                } else {
+                    output.innerHTML = `<span class="error">✗ Upload Failed</span>\n${JSON.stringify(data, null, 2)}`;
+                }
+            } catch (error) {
+                output.innerHTML = `<span class="error">✗ Error</span>\n${error.message}`;
+            }
+        }
+
+        // Auto-test on load
+        window.addEventListener('load', () => {
+            test('health');
+        });
+    </script>
+</body>
+</html>

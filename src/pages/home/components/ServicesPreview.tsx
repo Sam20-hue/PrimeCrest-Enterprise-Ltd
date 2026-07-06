@@ -37,7 +37,7 @@ export default function ServicesPreview() {
                   </div>
                   <h3 className="font-bold text-gray-900 text-base">{service.title}</h3>
                 </div>
-                <p className="text-gray-500 text-sm leading-relaxed mb-4 line-clamp-3">{service.description}</p>
+                <div className="text-gray-500 text-sm leading-relaxed mb-4 line-clamp-3" dangerouslySetInnerHTML={{ __html: service.description || '' }} />
                 <Link
                   to="/services"
                   className="inline-flex items-center gap-1 text-orange-600 text-sm font-semibold hover:gap-2 transition-all cursor-pointer"

@@ -8,6 +8,21 @@ interface RichTextEditorProps {
   rows?: number;
 }
 
+const FONT_FAMILIES = [
+  { name: 'Arial', value: 'Arial, sans-serif' },
+  { name: 'Georgia', value: 'Georgia, serif' },
+  { name: 'Times New Roman', value: '"Times New Roman", Times, serif' },
+  { name: 'Courier New', value: '"Courier New", monospace' },
+  { name: 'Verdana', value: 'Verdana, sans-serif' },
+  { name: 'Trebuchet MS', value: '"Trebuchet MS", sans-serif' },
+  { name: 'Comic Sans MS', value: '"Comic Sans MS", cursive' },
+  { name: 'Impact', value: 'Impact, fantasy' },
+  { name: 'Palatino', value: '"Palatino Linotype", serif' },
+  { name: 'Lucida Console', value: '"Lucida Console", monospace' },
+  { name: 'Tahoma', value: 'Tahoma, sans-serif' },
+  { name: 'Segoe UI', value: '"Segoe UI", sans-serif' },
+];
+
 const normalizeEditorValue = (value: string) => {
   if (!value) return '';
   if (/<[a-z][\s\S]*>/i.test(value)) return value;
@@ -43,25 +58,50 @@ export default function RichTextEditor({ value, onChange, maxLength = 4000, plac
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
-    if (e.key === 'Enter' && e.ctrlKey === false && e.shiftKey === false) {
-      return;
+    // Allow normal key handling
+    if (e.key === 'Enter' && e.shiftKey === false && !e.ctrlKey) {
+      // Allow normal enter for line breaks
     }
   };
 
   const executeCommand = (command: string, value?: string) => {
     editorRef.current?.focus();
-    document.execCommand(command, false, value);
+    document.execCommand(command, false, value || undefined);
+    handleInput();
   };
 
   const applyFormat = (command: string, value?: string) => {
     executeCommand(command, value);
-    requestAnimationFrame(() => handleInput());
   };
 
   const handleColorChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const color = event.target.value;
-    applyFormat('foreColor', color);
-    event.target.value = color;
+    editorRef.current?.focus();
+    
+    // Enable CSS-based styling instead of deprecated font tags
+    document.execCommand('styleWithCSS', false, 'true');
+    document.execCommand('foreColor', false, color);
+    
+    handleInput();
+    // Reset input so same color can be selected again
+    event.target.value = '#000000';
+  };
+
+  const handlePaste = (e: React.ClipboardEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    // Try to get HTML content first, fallback to plain text
+    const htmlText = e.clipboardData.getData('text/html');
+    const plainText = e.clipboardData.getData('text/plain');
+    
+    if (htmlText) {
+      // Paste as HTML to preserve formatting (colors, fonts, bold, etc.)
+      document.execCommand('insertHTML', false, htmlText);
+    } else if (plainText) {
+      // Fallback to plain text if HTML not available
+      document.execCommand('insertText', false, plainText);
+    }
+    
+    handleInput();
   };
 
   const updateFloatingToolbar = () => {
@@ -115,7 +155,26 @@ export default function RichTextEditor({ value, onChange, maxLength = 4000, plac
 
   return (
     <div className="space-y-2">
-      <div className="flex flex-wrap gap-1 p-2 bg-gray-50 border border-gray-200 rounded-t-lg">
+      <div className="flex flex-wrap gap-1 p-2 bg-gray-50 border border-gray-200 rounded-t-lg items-center">
+        <select
+          onChange={(e) => {
+            if (e.target.value) {
+              document.execCommand('fontName', false, e.target.value);
+              handleInput();
+            }
+            e.target.value = '';
+          }}
+          className="px-2 py-1 border border-gray-300 rounded text-xs focus:outline-none hover:bg-gray-100"
+          title="Font"
+        >
+          <option value="">Font</option>
+          {FONT_FAMILIES.map((font) => (
+            <option key={font.value} value={font.value}>
+              {font.name}
+            </option>
+          ))}
+        </select>
+        <div className="border-l border-gray-300 mx-1 h-6" />
         <button
           type="button"
           onClick={() => applyFormat('bold')}
@@ -143,7 +202,11 @@ export default function RichTextEditor({ value, onChange, maxLength = 4000, plac
         <div className="border-l border-gray-300 mx-1" />
         <button
           type="button"
-          onClick={() => applyFormat('insertUnorderedList')}
+          onClick={() => {
+            editorRef.current?.focus();
+            document.execCommand('insertUnorderedList', false);
+            handleInput();
+          }}
           title="Bullet List"
           className="p-2 rounded hover:bg-gray-200 transition-colors"
         >
@@ -151,49 +214,50 @@ export default function RichTextEditor({ value, onChange, maxLength = 4000, plac
         </button>
         <button
           type="button"
-          onClick={() => applyFormat('insertOrderedList')}
+          onClick={() => {
+            editorRef.current?.focus();
+            document.execCommand('insertOrderedList', false);
+            handleInput();
+          }}
           title="Numbered List"
           className="p-2 rounded hover:bg-gray-200 transition-colors"
         >
           <i className="ri-list-ordered text-gray-700" />
         </button>
-        <div className="border-l border-gray-300 mx-1" />
-        <button
-          type="button"
-          onClick={() => applyFormat('formatBlock', '<h1>')}
-          title="Heading 1"
-          className="p-2 rounded hover:bg-gray-200 transition-colors text-sm font-semibold"
+        <div className="border-l border-gray-300 mx-1 h-6" />
+        <select
+          onChange={(e) => {
+            if (e.target.value) {
+              document.execCommand('formatBlock', false, e.target.value);
+              handleInput();
+            }
+            e.target.value = '';
+          }}
+          className="px-2 py-1 border border-gray-300 rounded text-xs focus:outline-none hover:bg-gray-100"
+          title="Block Format"
         >
-          H1
-        </button>
-        <button
-          type="button"
-          onClick={() => applyFormat('formatBlock', '<h2>')}
-          title="Heading 2"
-          className="p-2 rounded hover:bg-gray-200 transition-colors text-sm font-semibold"
-        >
-          H2
-        </button>
-        <button
-          type="button"
-          onClick={() => applyFormat('formatBlock', '<p>')}
-          title="Paragraph"
-          className="p-2 rounded hover:bg-gray-200 transition-colors text-xs"
-        >
-          P
-        </button>
-        <div className="border-l border-gray-300 mx-1" />
+          <option value="">Format</option>
+          <option value="h1">Heading 1</option>
+          <option value="h2">Heading 2</option>
+          <option value="h3">Heading 3</option>
+          <option value="p">Paragraph</option>
+        </select>
+        <div className="border-l border-gray-300 mx-1 h-6" />
         <label
           title="Text Color"
-          className="flex h-9 w-9 cursor-pointer items-center justify-center rounded hover:bg-gray-200 transition-colors"
+          className="flex h-9 w-9 cursor-pointer items-center justify-center rounded hover:bg-gray-200 transition-colors relative group"
         >
           <i className="ri-font-color text-gray-700" />
           <input
             type="color"
-            defaultValue="#ff6b35"
+            defaultValue="#000000"
             onChange={handleColorChange}
-            className="absolute h-0 w-0 opacity-0"
+            className="absolute opacity-0 w-0 h-0 cursor-pointer"
+            title="Pick text color"
           />
+          <span className="absolute bottom-full mb-2 px-2 py-1 bg-gray-700 text-white text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+            Text Color
+          </span>
         </label>
       </div>
       <div style={{ position: 'relative' }}>
@@ -203,12 +267,18 @@ export default function RichTextEditor({ value, onChange, maxLength = 4000, plac
           suppressContentEditableWarning
           onInput={handleInput}
           onKeyDown={handleKeyDown}
+          onPaste={handlePaste}
           onFocus={() => setIsFocused(true)}
           onBlur={() => setIsFocused(false)}
           className={`w-full px-4 py-3 border rounded-b-lg text-sm focus:outline-none resize-none overflow-y-auto transition-colors ${
             isFocused ? 'border-orange-400 bg-white' : 'border-gray-200 bg-gray-50'
           }`}
-          style={{ minHeight: `${rows * 1.5}em`, maxHeight: '640px' }}
+          style={{
+            minHeight: `${rows * 1.5}em`,
+            maxHeight: '640px',
+            fontFamily: 'inherit',
+            lineHeight: '1.6',
+          }}
         />
         {showFloating && floatingPos && (
           <div
@@ -225,7 +295,11 @@ export default function RichTextEditor({ value, onChange, maxLength = 4000, plac
             <button type="button" onClick={() => applyFormat('underline')} className="p-2 rounded hover:bg-gray-100" title="Underline">
               <i className="ri-underline text-gray-700" />
             </button>
-            <button type="button" onClick={() => applyFormat('insertUnorderedList')} className="p-2 rounded hover:bg-gray-100" title="Bullets">
+            <button type="button" onClick={() => {
+              editorRef.current?.focus();
+              document.execCommand('insertUnorderedList', false);
+              handleInput();
+            }} className="p-2 rounded hover:bg-gray-100" title="Bullets">
               <i className="ri-list-unordered text-gray-700" />
             </button>
             <button type="button" onClick={() => applyFormat('insertOrderedList')} className="p-2 rounded hover:bg-gray-100" title="Numbered">

@@ -1,11 +1,8 @@
 const LOCALHOST_HOSTNAMES = ['localhost', '127.0.0.1'];
 
 export function getDefaultContactApiBase(): string {
-  if (typeof window === 'undefined') return '';
-  if (import.meta.env.DEV) {
-    return 'http://127.0.0.1:3002';
-  }
-  return '';
+  if (typeof window === 'undefined') return '/api';
+  return '/api';
 }
 
 function normalizeBaseUrl(url?: string): string {

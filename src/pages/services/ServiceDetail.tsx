@@ -2,6 +2,7 @@ import { useCallback, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useSiteData } from '../../context/SiteDataContext';
 import RequestModal from '../../components/RequestModal';
+import { useMetaTags } from '../../utils/useMetaTags';
 
 const buildServicesUrl = () => {
   const base = typeof window !== 'undefined' ? window.location.origin : '';
@@ -11,9 +12,17 @@ const buildServicesUrl = () => {
 
 export default function ServiceDetailPage() {
   const { id } = useParams();
-  const { services } = useSiteData();
+  const { services, settings } = useSiteData();
   const [showRequestModal, setShowRequestModal] = useState(false);
   const service = services.find((serviceItem) => serviceItem.id === id);
+
+  // Set meta tags for service detail page
+  useMetaTags({
+    title: service?.title,
+    description: service?.description || service?.title,
+    image: service?.image,
+    type: 'website',
+  });
 
   const returnToServices = useCallback(() => {
     const servicesUrl = buildServicesUrl();
@@ -73,7 +82,7 @@ export default function ServiceDetailPage() {
       {/* Small header with logo only */}
       <header className="w-full py-6 border-b border-gray-100">
         <div className="max-w-6xl mx-auto px-6 flex items-center">
-          <img src={useSiteData().settings.logoUrl} alt={useSiteData().settings.logoAltText} className="h-10 object-contain" />
+          <img src={settings.logoUrl} alt={settings.logoAltText} className="h-10 object-contain" />
         </div>
       </header>
 
@@ -88,7 +97,7 @@ export default function ServiceDetailPage() {
           <div className="relative mx-auto max-w-6xl px-6 py-10">
             <div className="max-w-3xl bg-white p-6 rounded-xl shadow-md">
               <h1 className="text-3xl font-extrabold text-gray-900 mb-2">{service.title}</h1>
-              <p className="text-sm text-gray-700">{service.description}</p>
+              <p className="text-sm text-gray-700" dangerouslySetInnerHTML={{ __html: service.description || '' }} />
               <div className="mt-4 flex gap-3">
                 <button type="button" onClick={returnToServices} className="px-4 py-2 border rounded text-sm">Back to services</button>
                 <button type="button" onClick={() => setShowRequestModal(true)} className="px-4 py-2 bg-orange-600 text-white rounded text-sm hover:bg-orange-700 transition-colors">Request this service</button>
@@ -102,7 +111,7 @@ export default function ServiceDetailPage() {
         <div className="grid gap-8 lg:grid-cols-[2fr_1fr] items-start">
           <div className="space-y-6">
             <h2 className="text-2xl font-bold text-gray-900">What you get with this service</h2>
-            <div className="text-gray-700 text-base leading-7 whitespace-pre-line">{service.details || service.description}</div>
+            <div className="text-gray-700 text-base leading-7" dangerouslySetInnerHTML={{ __html: service.details || service.description || '' }} />
 
             <div className="grid gap-6 sm:grid-cols-2">
               {galleryImages.map((imageUrl, index) => (

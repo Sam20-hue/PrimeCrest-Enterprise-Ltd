@@ -2,6 +2,7 @@ import { useState, useRef, useCallback } from 'react';
 import RichTextEditor from '../../../components/RichTextEditor';
 import { useSiteData, Service } from '../../../context/SiteDataContext';
 import { mysqlService } from '../../../services/mysqlService';
+import { REMIX_ICONS } from '../../../utils/remixIcons';
 
 const emptyService = (): Service => ({
   id: Date.now().toString(),
@@ -39,7 +40,11 @@ export default function AdminServices() {
 
   const saveServiceTitles = (titles: string[]) => {
     setServiceTitles(titles);
-    try { localStorage.setItem('pc_service_titles', JSON.stringify(titles)); } catch {}
+    try {
+      localStorage.setItem('pc_service_titles', JSON.stringify(titles));
+    } catch {
+      // Ignore storage write failures in non-browser contexts
+    }
   };
 
   const serviceTitleOptions = Array.from(new Set([...(serviceTitles || []), ...services.map((service) => service.title).filter(Boolean)]));
@@ -339,15 +344,27 @@ export default function AdminServices() {
                 )}
               </div>
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Icon Class</label>
-                <input
-                  type="text"
-                  value={editing.icon}
-                  onChange={(e) => setEditing({ ...editing, icon: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-orange-400"
-                  placeholder="ri-camera-line"
-                />
-                <p className="text-xs text-gray-400 mt-1">Use Remix Icon class names, e.g. ri-camera-line, ri-safe-line</p>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Icon</label>
+                <div className="flex gap-2 items-center">
+                  <select
+                    value={editing.icon}
+                    onChange={(e) => setEditing({ ...editing, icon: e.target.value })}
+                    className="flex-1 px-4 py-3 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-orange-400"
+                  >
+                    <option value="">-- Select an icon --</option>
+                    {REMIX_ICONS.map((item) => (
+                      <option key={item.icon} value={item.icon}>
+                        {item.name} ({item.icon})
+                      </option>
+                    ))}
+                  </select>
+                  {editing.icon && (
+                    <div className="flex items-center gap-2 px-4 py-3 bg-gray-50 rounded-lg border border-gray-200">
+                      <i className={`${editing.icon} text-orange-600 text-2xl`} />
+                      <span className="text-xs text-gray-500">{editing.icon}</span>
+                    </div>
+                  )}
+                </div>
               </div>
               <div>
                 <div className="flex items-center justify-between mb-2">
