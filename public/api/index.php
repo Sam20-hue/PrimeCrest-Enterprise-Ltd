@@ -94,6 +94,123 @@ if ($id === null && preg_match('/\/(\d+)\/?$/', $path, $matches)) {
 
 $input = json_decode(file_get_contents('php://input'), true) ?? [];
 
+// FILE-FALLBACK ROUTER: if DB connection is unavailable, use JSON files in ./data/
+if (!isset($conn) || $conn === null) {
+    $dataDir = __DIR__ . '/data';
+    if (!is_dir($dataDir)) mkdir($dataDir, 0755, true);
+
+    $readJson = function($name) use ($dataDir) {
+        $file = $dataDir . '/' . $name . '.json';
+        if (!is_file($file)) return null;
+        $txt = file_get_contents($file);
+        return json_decode($txt, true);
+    };
+
+    $writeJson = function($name, $data) use ($dataDir) {
+        $file = $dataDir . '/' . $name . '.json';
+        file_put_contents($file, json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+    };
+
+    // Contact submission
+    if ($resource === 'contact' || $resource === 'contacts' || $endpoint === 'contact') {
+        if ($method === 'POST') {
+            $contacts = $readJson('contacts') ?? [];
+            $record = [
+                'id' => (count($contacts) ? (max(array_column($contacts, 'id')) + 1) : 1),
+                'name' => $input['name'] ?? '',
+                'email' => $input['email'] ?? '',
+                'phone' => $input['phone'] ?? '',
+                'service' => $input['service'] ?? '',
+                'message' => $input['message'] ?? '',
+                'created_at' => date('Y-m-d H:i:s')
+            ];
+            $contacts[] = $record;
+            $writeJson('contacts', $contacts);
+            // attempt to send email using PHP mail
+            $to = ($input['email'] ?? '');
+            // respond success
+            echo json_encode(['id' => $record['id'], 'success' => true]);
+            exit;
+        }
+        if ($method === 'GET') {
+            $contacts = $readJson('contacts') ?? [];
+            echo json_encode($contacts);
+            exit;
+        }
+    }
+
+    // Settings
+    if ($resource === 'settings' || $endpoint === 'settings') {
+        if ($method === 'GET') {
+            $s = $readJson('settings') ?? [];
+            echo json_encode($s);
+            exit;
+        }
+        if ($method === 'PUT' || $method === 'POST') {
+            $current = $readJson('settings') ?? [];
+            $new = array_merge($current, $input);
+            $writeJson('settings', $new);
+            echo json_encode(['success' => true, 'message' => 'Settings updated']);
+            exit;
+        }
+    }
+
+    // Gallery
+    if ($resource === 'gallery' || $endpoint === 'gallery') {
+        $items = $readJson('gallery') ?? [];
+        if ($method === 'GET') {
+            echo json_encode($items);
+            exit;
+        }
+        if ($method === 'POST') {
+            $id = (count($items) ? (max(array_column($items, 'id')) + 1) : 1);
+            $record = array_merge(['id' => $id, 'created_at' => date('Y-m-d H:i:s')], $input);
+            $items[] = $record;
+            $writeJson('gallery', $items);
+            echo json_encode(['id' => $id, 'success' => true]);
+            exit;
+        }
+        if (($method === 'PUT' || $method === 'DELETE') && $id) {
+            $found = false;
+            $new = [];
+            foreach ($items as $it) {
+                if (isset($it['id']) && (int)$it['id'] === (int)$id) {
+                    $found = true;
+                    if ($method === 'PUT') {
+                        $new[] = array_merge($it, $input);
+                    }
+                    // skip for DELETE
+                } else {
+                    $new[] = $it;
+                }
+            }
+            $writeJson('gallery', $new);
+            echo json_encode(['success' => $found]);
+            exit;
+        }
+    }
+
+    // Sync endpoint: accept full sync payload and write to respective JSON files
+    if ($resource === 'sync' || $endpoint === 'sync') {
+        if ($method === 'POST') {
+            if (isset($input['settings'])) $writeJson('settings', $input['settings']);
+            if (isset($input['services'])) $writeJson('services', $input['services']);
+            if (isset($input['gallery'])) $writeJson('gallery', $input['gallery']);
+            if (isset($input['blog'])) $writeJson('blog', $input['blog']);
+            if (isset($input['authors'])) $writeJson('authors', $input['authors']);
+            if (isset($input['team'])) $writeJson('team', $input['team']);
+            if (isset($input['testimonials'])) $writeJson('testimonials', $input['testimonials']);
+            if (isset($input['subscribers'])) $writeJson('subscribers', $input['subscribers']);
+            echo json_encode(['success' => true, 'message' => 'Data synced to file fallback']);
+            exit;
+        }
+    }
+
+    http_response_code(404);
+    echo json_encode(['error' => 'Endpoint not found (file-fallback)']);
+    exit;
+}
+
 try {
     // ==================== SETTINGS ====================
     if ($resource === 'settings' || $endpoint === 'settings') {

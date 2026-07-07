@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom';
 import { useSiteData } from '../../context/SiteDataContext';
 import RequestModal from '../../components/RequestModal';
 import { useMetaTags } from '../../utils/useMetaTags';
+import { slugify } from '../../utils/slugify';
 
 const buildServicesUrl = () => {
   const base = typeof window !== 'undefined' ? window.location.origin : '';
@@ -11,10 +12,12 @@ const buildServicesUrl = () => {
 };
 
 export default function ServiceDetailPage() {
-  const { id } = useParams();
+  const { slug } = useParams();
   const { services, settings } = useSiteData();
   const [showRequestModal, setShowRequestModal] = useState(false);
-  const service = services.find((serviceItem) => serviceItem.id === id);
+  
+  // Find service by slug (matching the URL-safe slug of the service title)
+  const service = services.find((serviceItem) => slugify(serviceItem.title) === slug);
 
   // Set meta tags for service detail page
   useMetaTags({

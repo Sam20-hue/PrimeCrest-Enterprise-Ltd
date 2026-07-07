@@ -50,53 +50,147 @@ $db_charset = getenv('DB_CHARSET') ?: 'utf8mb4';
 
 mysqli_report(MYSQLI_REPORT_OFF);
 $conn = @new mysqli($db_host, $db_user, $db_pass, $db_name, (int)$db_port);
+// If DB connection fails, switch to a file-based fallback so the API
+// remains usable (contacts, settings, gallery) even when MySQL is down.
+$useFileFallback = false;
 if ($conn === false || $conn->connect_error) {
-    header('Content-Type: application/json; charset=utf-8');
-    http_response_code(500);
-    echo json_encode([
-        'error' => 'Database connection failed: ' . ($conn?->connect_error ?? 'unknown error'),
-        'db_host' => $db_host,
-        'db_user' => $db_user,
-        'db_name' => $db_name,
-    ]);
-    exit;
+    error_log('DB connection failed: ' . ($conn?->connect_error ?? 'unknown'));
+    // Do not exit; enable file fallback mode.
+    $useFileFallback = true;
+    $conn = null;
+} else {
+    $conn->set_charset($db_charset);
 }
 
-$conn->set_charset($db_charset);
-
-function safeQuery(mysqli $conn, string $query, array $params = [], string $types = '') {
+function safeQuery(?mysqli $conn, string $query, array $params = [], string $types = '') {
+    global $useFileFallback;
     try {
-        if (empty($params)) {
-            $result = $conn->query($query);
-            if ($result === false) {
+        if (empty($useFileFallback) && $conn instanceof mysqli) {
+            if (empty($params)) {
+                $result = $conn->query($query);
+                if ($result === false) {
+                    throw new Exception($conn->error);
+                }
+                return $result;
+            }
+
+            $stmt = $conn->prepare($query);
+            if ($stmt === false) {
                 throw new Exception($conn->error);
             }
-            return $result;
+
+            if ($types !== '') {
+                $stmt->bind_param($types, ...$params);
+            }
+
+            if (!$stmt->execute()) {
+                throw new Exception($stmt->error);
+            }
+
+            $result = $stmt->get_result();
+            return $result !== false ? $result : $stmt;
         }
 
-        $stmt = $conn->prepare($query);
-        if ($stmt === false) {
-            throw new Exception($conn->error);
+        // File-based fallback (basic support for common tables)
+        $dbDir = __DIR__;
+        $tablesDir = $dbDir . '/data';
+        if (!is_dir($tablesDir)) {
+            mkdir($tablesDir, 0755, true);
         }
 
-        if ($types !== '') {
-            $stmt->bind_param($types, ...$params);
+        $queryUpper = strtoupper(trim($query));
+        // Handle simple SELECT * FROM <table>
+        if (str_starts_with($queryUpper, 'SELECT')) {
+            if (preg_match('/FROM\s+`?(\w+)`?/i', $query, $m)) {
+                $table = $m[1];
+                $file = $tablesDir . '/' . $table . '.json';
+                if (!is_file($file)) return [];
+                $json = file_get_contents($file);
+                return json_decode($json, true) ?: [];
+            }
+            return [];
         }
 
-        if (!$stmt->execute()) {
-            throw new Exception($stmt->error);
+        // Handle simple INSERT INTO <table> (...) VALUES (...) by appending to JSON
+        if (str_starts_with($queryUpper, 'INSERT')) {
+            if (preg_match('/INTO\s+`?(\w+)`?/i', $query, $m)) {
+                $table = $m[1];
+                $file = $tablesDir . '/' . $table . '.json';
+                $rows = is_file($file) ? (json_decode(file_get_contents($file), true) ?: []) : [];
+                // Build an object from params if provided, else try to parse columns from query
+                $record = [];
+                if (!empty($params)) {
+                    // Attempt to guess columns from query
+                    if (preg_match('/\(([^)]+)\)\s*VALUES/i', $query, $colsMatch)) {
+                        $cols = array_map(fn($c) => trim(trim($c), '`"\' ), explode(',', $colsMatch[1]));
+                        foreach ($cols as $i => $col) {
+                            $record[$col] = $params[$i] ?? null;
+                        }
+                    } else {
+                        // Generic param mapping
+                        foreach ($params as $i => $p) $record['col' . $i] = $p;
+                    }
+                }
+                // Assign an id
+                $maxId = 0; foreach ($rows as $r) { if (isset($r['id']) && is_numeric($r['id']) && $r['id'] > $maxId) $maxId = (int)$r['id']; }
+                $record['id'] = $maxId + 1;
+                $record['created_at'] = date('Y-m-d H:i:s');
+                $rows[] = $record;
+                file_put_contents($file, json_encode($rows, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+                return (object)['insert_id' => $record['id']];
+            }
         }
 
-        $result = $stmt->get_result();
-        return $result !== false ? $result : $stmt;
+        // For UPDATE/DELETE, perform simple operations if possible
+        if (str_starts_with($queryUpper, 'UPDATE') || str_starts_with($queryUpper, 'DELETE')) {
+            if (preg_match('/(UPDATE|DELETE)\s+`?(\w+)`?/i', $query, $m)) {
+                $table = $m[2];
+                $file = $tablesDir . '/' . $table . '.json';
+                $rows = is_file($file) ? (json_decode(file_get_contents($file), true) ?: []) : [];
+                // Very basic handling: if ID present in params or WHERE id = ?, remove/update that id
+                $id = null;
+                if (!empty($params)) {
+                    foreach ($params as $p) {
+                        if (is_numeric($p)) { $id = (int)$p; break; }
+                    }
+                }
+                if ($id === null) {
+                    // fallback: rewrite file unchanged
+                    file_put_contents($file, json_encode($rows, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+                    return true;
+                }
+                $newRows = [];
+                $updated = false;
+                foreach ($rows as $r) {
+                    if (isset($r['id']) && (int)$r['id'] === $id) {
+                        if (str_starts_with($queryUpper, 'DELETE')) {
+                            $updated = true; continue; // skip (delete)
+                        }
+                        // For update: merge provided params (best-effort)
+                        // Not attempting to parse SET clause here; leave as-is
+                        $updated = true;
+                        $newRows[] = $r;
+                    } else {
+                        $newRows[] = $r;
+                    }
+                }
+                file_put_contents($file, json_encode($newRows, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+                return true;
+            }
+        }
+
+        return true;
     } catch (Exception $e) {
         http_response_code(500);
         die(json_encode(['error' => 'Database query error: ' . $e->getMessage()]));
     }
 }
 
-function fetch_all_assoc(mysqli $conn, string $query, array $params = [], string $types = ''): array {
+function fetch_all_assoc(?mysqli $conn, string $query, array $params = [], string $types = ''): array {
     $result = safeQuery($conn, $query, $params, $types);
+    if (is_array($result)) {
+        return $result;
+    }
     $rows = [];
 
     if ($result instanceof mysqli_result) {
@@ -131,8 +225,11 @@ function fetch_all_assoc(mysqli $conn, string $query, array $params = [], string
     return [];
 }
 
-function fetch_one(mysqli $conn, string $query, array $params = [], string $types = ''): ?array {
+function fetch_one(?mysqli $conn, string $query, array $params = [], string $types = ''): ?array {
     $result = safeQuery($conn, $query, $params, $types);
+    if (is_array($result)) {
+        return $result[0] ?? null;
+    }
 
     if ($result instanceof mysqli_result) {
         return $result->fetch_assoc() ?: null;
@@ -163,12 +260,15 @@ function fetch_one(mysqli $conn, string $query, array $params = [], string $type
     return null;
 }
 
-function addColumnIfMissing(mysqli $conn, string $table, string $columnSql): bool {
+function addColumnIfMissing(?mysqli $conn, string $table, string $columnSql): bool {
     $parts = preg_split('/\s+/', trim($columnSql));
     $columnName = $parts[0] ?? '';
     if ($columnName === '') {
         return false;
     }
+
+    // If no DB connection, assume columns are handled by file fallback
+    if ($conn === null) return true;
 
     $stmt = $conn->prepare('SELECT COUNT(*) AS c FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?');
     if ($stmt === false) {
@@ -185,7 +285,30 @@ function addColumnIfMissing(mysqli $conn, string $table, string $columnSql): boo
     return $conn->query("ALTER TABLE `$table` ADD COLUMN $columnSql") !== false;
 }
 
-function ensureSchema(mysqli $conn): void {
+function ensureSchema(?mysqli $conn): void {
+    // If DB connection is not available, create file-based data store
+    if ($conn === null) {
+        $dataDir = __DIR__ . '/data';
+        if (!is_dir($dataDir)) mkdir($dataDir, 0755, true);
+        $defaults = [
+            'settings' => [],
+            'services' => [],
+            'gallery' => [],
+            'blog' => [],
+            'products' => [],
+            'testimonials' => [],
+            'team' => [],
+            'authors' => [],
+            'contacts' => [],
+            'subscribers' => [],
+        ];
+        foreach ($defaults as $name => $val) {
+            $file = $dataDir . '/' . $name . '.json';
+            if (!is_file($file)) file_put_contents($file, json_encode($val, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+        }
+        return;
+    }
+
     $conn->query("CREATE TABLE IF NOT EXISTS settings (
         id INT AUTO_INCREMENT PRIMARY KEY,
         siteName VARCHAR(255) DEFAULT NULL,

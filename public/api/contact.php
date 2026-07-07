@@ -155,10 +155,16 @@ if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
 }
 
 try {
-    safeQuery($conn, 'INSERT INTO contacts (name, email, phone, service, message) VALUES (?, ?, ?, ?, ?)', [$name, $email, $phone, $service, $message], 'sssss');
-    $contactId = $conn->insert_id;
+    $insertResult = safeQuery($conn, 'INSERT INTO contacts (name, email, phone, service, message) VALUES (?, ?, ?, ?, ?)', [$name, $email, $phone, $service, $message], 'sssss');
+    if (is_object($insertResult) && isset($insertResult->insert_id)) {
+        $contactId = $insertResult->insert_id;
+    } elseif ($conn instanceof mysqli) {
+        $contactId = $conn->insert_id;
+    } else {
+        $contactId = null;
+    }
 } catch (Exception $e) {
-    respond(500, ['error' => 'Unable to save contact message.']);
+    respond(500, ['error' => 'Unable to save contact message to database.', 'details' => $e->getMessage()]);
 }
 
 $subject = 'New message from ' . $name . ' via Primecrest website';
@@ -194,17 +200,31 @@ $htmlMessage = '<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="vie
 $sender = SENDER_EMAIL;
 $replyTo = $email;
 $error = null;
+$emailSent = false;
+
+// Try SMTP first
 $adminSent = sendSmtpMail(CONTACT_RECIPIENT, $subject, $htmlMessage, $sender, $replyTo, $error);
-if (!$adminSent) {
+if ($adminSent) {
+    $emailSent = true;
+} else {
+    // Fallback to PHP mail() function
     $headers = [];
     $headers[] = 'From: ' . $sender;
     $headers[] = 'Reply-To: ' . $replyTo;
     $headers[] = 'MIME-Version: 1.0';
     $headers[] = 'Content-type: text/html; charset=utf-8';
-    $adminSent = mail(CONTACT_RECIPIENT, $subject, $htmlMessage, implode("\r\n", $headers));
-    if (!$adminSent) {
-        respond(500, ['error' => 'Unable to send email from this server. SMTP error: ' . ($error ?: 'unknown')]);
+    $adminSent = @mail(CONTACT_RECIPIENT, $subject, $htmlMessage, implode("\r\n", $headers));
+    if ($adminSent) {
+        $emailSent = true;
     }
 }
 
-respond(201, ['success' => true, 'id' => $contactId, 'message' => 'Contact request sent successfully.']);
+// Always return success if contact was saved to database
+// Email delivery is secondary (it may fail due to server configuration)
+respond(201, [
+    'success' => true,
+    'id' => $contactId,
+    'message' => 'Contact request submitted successfully.',
+    'emailSent' => $emailSent,
+    'emailError' => !$emailSent ? ($error ?: 'Email backend unavailable. We still received your message.') : null,
+]);

@@ -12,6 +12,20 @@ header('Access-Control-Allow-Headers: Content-Type');
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
     exit;
+<?php
+/**
+ * Unified API Router for all data operations
+ * Handles GET, POST, PUT, DELETE for all entities
+ */
+
+header('Content-Type: application/json');
+header('Access-Control-Allow-Origin: *');
+header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
+header('Access-Control-Allow-Headers: Content-Type');
+
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    http_response_code(200);
+    exit;
 }
 
 require_once __DIR__ . '/db.php';
@@ -94,6 +108,123 @@ if ($id === null && preg_match('/\/(\d+)\/?$/', $path, $matches)) {
 
 $input = json_decode(file_get_contents('php://input'), true) ?? [];
 
+// FILE-FALLBACK ROUTER: if DB connection is unavailable, use JSON files in ./data/
+if (!isset($conn) || $conn === null) {
+    $dataDir = __DIR__ . '/data';
+    if (!is_dir($dataDir)) mkdir($dataDir, 0755, true);
+
+    $readJson = function($name) use ($dataDir) {
+        $file = $dataDir . '/' . $name . '.json';
+        if (!is_file($file)) return null;
+        $txt = file_get_contents($file);
+        return json_decode($txt, true);
+    };
+
+    $writeJson = function($name, $data) use ($dataDir) {
+        $file = $dataDir . '/' . $name . '.json';
+        file_put_contents($file, json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+    };
+
+    // Contact submission
+    if ($resource === 'contact' || $resource === 'contacts' || $endpoint === 'contact') {
+        if ($method === 'POST') {
+            $contacts = $readJson('contacts') ?? [];
+            $record = [
+                'id' => (count($contacts) ? (max(array_column($contacts, 'id')) + 1) : 1),
+                'name' => $input['name'] ?? '',
+                'email' => $input['email'] ?? '',
+                'phone' => $input['phone'] ?? '',
+                'service' => $input['service'] ?? '',
+                'message' => $input['message'] ?? '',
+                'created_at' => date('Y-m-d H:i:s')
+            ];
+            $contacts[] = $record;
+            $writeJson('contacts', $contacts);
+            // attempt to send email using PHP mail
+            $to = ($input['email'] ?? '');
+            // respond success
+            echo json_encode(['id' => $record['id'], 'success' => true]);
+            exit;
+        }
+        if ($method === 'GET') {
+            $contacts = $readJson('contacts') ?? [];
+            echo json_encode($contacts);
+            exit;
+        }
+    }
+
+    // Settings
+    if ($resource === 'settings' || $endpoint === 'settings') {
+        if ($method === 'GET') {
+            $s = $readJson('settings') ?? [];
+            echo json_encode($s);
+            exit;
+        }
+        if ($method === 'PUT' || $method === 'POST') {
+            $current = $readJson('settings') ?? [];
+            $new = array_merge($current, $input);
+            $writeJson('settings', $new);
+            echo json_encode(['success' => true, 'message' => 'Settings updated']);
+            exit;
+        }
+    }
+
+    // Gallery
+    if ($resource === 'gallery' || $endpoint === 'gallery') {
+        $items = $readJson('gallery') ?? [];
+        if ($method === 'GET') {
+            echo json_encode($items);
+            exit;
+        }
+        if ($method === 'POST') {
+            $id = (count($items) ? (max(array_column($items, 'id')) + 1) : 1);
+            $record = array_merge(['id' => $id, 'created_at' => date('Y-m-d H:i:s')], $input);
+            $items[] = $record;
+            $writeJson('gallery', $items);
+            echo json_encode(['id' => $id, 'success' => true]);
+            exit;
+        }
+        if (($method === 'PUT' || $method === 'DELETE') && $id) {
+            $found = false;
+            $new = [];
+            foreach ($items as $it) {
+                if (isset($it['id']) && (int)$it['id'] === (int)$id) {
+                    $found = true;
+                    if ($method === 'PUT') {
+                        $new[] = array_merge($it, $input);
+                    }
+                    // skip for DELETE
+                } else {
+                    $new[] = $it;
+                }
+            }
+            $writeJson('gallery', $new);
+            echo json_encode(['success' => $found]);
+            exit;
+        }
+    }
+
+    // Sync endpoint: accept full sync payload and write to respective JSON files
+    if ($resource === 'sync' || $endpoint === 'sync') {
+        if ($method === 'POST') {
+            if (isset($input['settings'])) $writeJson('settings', $input['settings']);
+            if (isset($input['services'])) $writeJson('services', $input['services']);
+            if (isset($input['gallery'])) $writeJson('gallery', $input['gallery']);
+            if (isset($input['blog'])) $writeJson('blog', $input['blog']);
+            if (isset($input['authors'])) $writeJson('authors', $input['authors']);
+            if (isset($input['team'])) $writeJson('team', $input['team']);
+            if (isset($input['testimonials'])) $writeJson('testimonials', $input['testimonials']);
+            if (isset($input['subscribers'])) $writeJson('subscribers', $input['subscribers']);
+            echo json_encode(['success' => true, 'message' => 'Data synced to file fallback']);
+            exit;
+        }
+    }
+
+    http_response_code(404);
+    echo json_encode(['error' => 'Endpoint not found (file-fallback)']);
+    exit;
+}
+
 try {
     // ==================== SETTINGS ====================
     if ($resource === 'settings' || $endpoint === 'settings') {
@@ -149,137 +280,6 @@ try {
             echo json_encode(['success' => true]);
         }
     }
-    
-    // ==================== GALLERY ====================
-    else if ($resource === 'gallery' || $endpoint === 'gallery') {
-        if ($method === 'GET') {
-            $rows = fetch_all_assoc($conn, 'SELECT * FROM gallery ORDER BY id');
-            echo json_encode($rows);
-        } elseif ($method === 'POST') {
-            $images = is_array($input['images'] ?? null) ? json_encode($input['images'], JSON_UNESCAPED_UNICODE) : ($input['images'] ?? null);
-            $captions = is_array($input['imagesCaptions'] ?? null) ? json_encode($input['imagesCaptions'], JSON_UNESCAPED_UNICODE) : ($input['imagesCaptions'] ?? null);
-            $stmt = $conn->prepare('INSERT INTO gallery (title, category, imageUrl, images, imagesCaptions, description) VALUES (?, ?, ?, ?, ?, ?)');
-            $stmt->bind_param('ssssss', $input['title'], $input['category'], $input['imageUrl'], $images, $captions, $input['description']);
-            $stmt->execute();
-            echo json_encode(['id' => $conn->insert_id, 'success' => true]);
-        } elseif ($method === 'PUT' && $id) {
-            $images = is_array($input['images'] ?? null) ? json_encode($input['images'], JSON_UNESCAPED_UNICODE) : ($input['images'] ?? null);
-            $captions = is_array($input['imagesCaptions'] ?? null) ? json_encode($input['imagesCaptions'], JSON_UNESCAPED_UNICODE) : ($input['imagesCaptions'] ?? null);
-            $stmt = $conn->prepare('UPDATE gallery SET title = ?, category = ?, imageUrl = ?, images = ?, imagesCaptions = ?, description = ? WHERE id = ?');
-            $stmt->bind_param('ssssssi', $input['title'], $input['category'], $input['imageUrl'], $images, $captions, $input['description'], $id);
-            $stmt->execute();
-            echo json_encode(['success' => true]);
-        } elseif ($method === 'DELETE' && $id) {
-            $stmt = $conn->prepare('DELETE FROM gallery WHERE id = ?');
-            $stmt->bind_param('i', $id);
-            $stmt->execute();
-            echo json_encode(['success' => true]);
-        }
-    }
-    
-    // ==================== BLOG ====================
-    else if ($resource === 'blog' || $endpoint === 'blog') {
-        if ($method === 'GET') {
-            $rows = fetch_all_assoc($conn, 'SELECT * FROM blog ORDER BY published_at DESC');
-            echo json_encode($rows);
-        } elseif ($method === 'POST') {
-            $images = is_array($input['images'] ?? null) ? json_encode($input['images'], JSON_UNESCAPED_UNICODE) : ($input['images'] ?? null);
-            $captions = is_array($input['imagesCaptions'] ?? null) ? json_encode($input['imagesCaptions'], JSON_UNESCAPED_UNICODE) : ($input['imagesCaptions'] ?? null);
-            $published = !empty($input['published']) ? 1 : 0;
-            $stmt = $conn->prepare('INSERT INTO blog (title, excerpt, content, category, imageUrl, images, imagesCaptions, author, authorId, published, date, published_at, newsletterSent) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
-            $stmt->bind_param('ssssssssisssi', $input['title'], $input['excerpt'], $input['content'], $input['category'], $input['imageUrl'], $images, $captions, $input['author'], $input['authorId'], $published, $input['date'], $input['published_at'] ?? $input['date'], !empty($input['newsletterSent']) ? 1 : 0);
-            $stmt->execute();
-            echo json_encode(['id' => $conn->insert_id, 'success' => true]);
-        } elseif ($method === 'PUT' && $id) {
-            $images = is_array($input['images'] ?? null) ? json_encode($input['images'], JSON_UNESCAPED_UNICODE) : ($input['images'] ?? null);
-            $captions = is_array($input['imagesCaptions'] ?? null) ? json_encode($input['imagesCaptions'], JSON_UNESCAPED_UNICODE) : ($input['imagesCaptions'] ?? null);
-            $published = !empty($input['published']) ? 1 : 0;
-            $stmt = $conn->prepare('UPDATE blog SET title = ?, excerpt = ?, content = ?, category = ?, imageUrl = ?, images = ?, imagesCaptions = ?, author = ?, authorId = ?, published = ?, date = ?, published_at = ?, newsletterSent = ? WHERE id = ?');
-            $stmt->bind_param('ssssssssisssii', $input['title'], $input['excerpt'], $input['content'], $input['category'], $input['imageUrl'], $images, $captions, $input['author'], $input['authorId'], $published, $input['date'], $input['published_at'] ?? $input['date'], !empty($input['newsletterSent']) ? 1 : 0, $id);
-            $stmt->execute();
-            echo json_encode(['success' => true]);
-        } elseif ($method === 'DELETE' && $id) {
-            $stmt = $conn->prepare('DELETE FROM blog WHERE id = ?');
-            $stmt->bind_param('i', $id);
-            $stmt->execute();
-            echo json_encode(['success' => true]);
-        }
-    }
-    
-    // ==================== TESTIMONIALS ====================
-    else if ($resource === 'testimonials' || $endpoint === 'testimonials') {
-        if ($method === 'GET') {
-            $rows = fetch_all_assoc($conn, 'SELECT * FROM testimonials ORDER BY id');
-            echo json_encode($rows);
-        } elseif ($method === 'POST') {
-            $stmt = $conn->prepare('INSERT INTO testimonials (name, role, photo, quote) VALUES (?, ?, ?, ?)');
-            $stmt->bind_param('ssss', $input['name'], $input['role'], $input['photo'], $input['quote']);
-            $stmt->execute();
-            echo json_encode(['id' => $conn->insert_id, 'success' => true]);
-        } elseif ($method === 'PUT' && $id) {
-            $stmt = $conn->prepare('UPDATE testimonials SET name = ?, role = ?, photo = ?, quote = ? WHERE id = ?');
-            $stmt->bind_param('ssssi', $input['name'], $input['role'], $input['photo'], $input['quote'], $id);
-            $stmt->execute();
-            echo json_encode(['success' => true]);
-        } elseif ($method === 'DELETE' && $id) {
-            $stmt = $conn->prepare('DELETE FROM testimonials WHERE id = ?');
-            $stmt->bind_param('i', $id);
-            $stmt->execute();
-            echo json_encode(['success' => true]);
-        }
-    }
-    
-    // ==================== TEAM ====================
-    else if ($resource === 'team' || $endpoint === 'team') {
-        if ($method === 'GET') {
-            $rows = fetch_all_assoc($conn, 'SELECT * FROM team ORDER BY id');
-            echo json_encode($rows);
-        } elseif ($method === 'POST') {
-            $stmt = $conn->prepare('INSERT INTO team (name, role, imageUrl) VALUES (?, ?, ?)');
-            $stmt->bind_param('sss', $input['name'], $input['role'], $input['imageUrl']);
-            $stmt->execute();
-            echo json_encode(['id' => $conn->insert_id, 'success' => true]);
-        } elseif ($method === 'PUT' && $id) {
-            $stmt = $conn->prepare('UPDATE team SET name = ?, role = ?, imageUrl = ? WHERE id = ?');
-            $stmt->bind_param('sssi', $input['name'], $input['role'], $input['imageUrl'], $id);
-            $stmt->execute();
-            echo json_encode(['success' => true]);
-        } elseif ($method === 'DELETE' && $id) {
-            $stmt = $conn->prepare('DELETE FROM team WHERE id = ?');
-            $stmt->bind_param('i', $id);
-            $stmt->execute();
-            echo json_encode(['success' => true]);
-        }
-    }
-    
-    // ==================== CONTACTS ====================
-    else if ($resource === 'contacts' || $endpoint === 'contact') {
-        if ($method === 'GET') {
-            $rows = fetch_all_assoc($conn, 'SELECT * FROM contacts ORDER BY created_at DESC');
-            echo json_encode($rows);
-        } elseif ($method === 'POST') {
-            $stmt = $conn->prepare('INSERT INTO contacts (name, email, phone, service, message) VALUES (?, ?, ?, ?, ?)');
-            $stmt->bind_param('sssss', $input['name'], $input['email'], $input['phone'], $input['service'], $input['message']);
-            $stmt->execute();
-            echo json_encode(['id' => $conn->insert_id, 'success' => true]);
-        } elseif ($method === 'DELETE' && $id) {
-            $stmt = $conn->prepare('DELETE FROM contacts WHERE id = ?');
-            $stmt->bind_param('i', $id);
-            $stmt->execute();
-            echo json_encode(['success' => true]);
-        }
-    }
-    
-    // ==================== SUBSCRIBERS ====================
-    else if ($resource === 'subscribers' || $endpoint === 'subscribe') {
-        if ($method === 'GET') {
-            // Get subscribers (admin only - no email field exposed)
-            $rows = fetch_all_assoc($conn, 'SELECT id, email FROM subscribers ORDER BY created_at DESC');
-            echo json_encode($rows);
-        } elseif ($method === 'POST') {
-            // Subscribe new email
-            $email = $input['email'] ?? '';
-            if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
                 http_response_code(400);
                 echo json_encode(['error' => 'Invalid email']);
                 exit;

@@ -66,8 +66,15 @@ export default function AdminServices() {
     if (!editing) return;
     try {
       let res;
-      // ensure payload uses `imageUrl` (backend expects imageUrl)
-      const payload = { ...editing, imageUrl: (editing as any).image ?? editing.imageUrl };
+      // Ensure payload uses `imageUrl` (backend expects imageUrl, frontend stores as 'image')
+      const imageUrl = (editing as any).image || editing.imageUrl || '';
+      const payload = {
+        ...editing,
+        image: undefined, // remove the frontend 'image' field
+        imageUrl, // ensure imageUrl is always present
+      };
+      delete (payload as any).image; // clean up
+      
       if (services.find((s) => s.id === editing.id)) {
         const serverId = Number(editing.id) || null;
         if (serverId) {
@@ -82,7 +89,11 @@ export default function AdminServices() {
       if (!res || !res.ok) throw new Error(res?.error || 'Failed to save service');
       const refreshed = await mysqlService.getServices();
       if (refreshed.ok && Array.isArray(refreshed.data)) {
-        setServices(refreshed.data as any);
+        const normalizedServices = refreshed.data.map((svc: any) => ({
+          ...svc,
+          image: svc.imageUrl || svc.image || '', // Ensure 'image' field is populated from imageUrl
+        }));
+        setServices(normalizedServices as any);
       }
     } catch (err) {
       console.error('[AdminServices] save failed', err);
@@ -102,7 +113,11 @@ export default function AdminServices() {
       if (!result.ok) throw new Error(result.error || 'Delete failed');
       const refreshed = await mysqlService.getServices();
       if (refreshed.ok && Array.isArray(refreshed.data)) {
-        setServices(refreshed.data as any);
+        const normalizedServices = refreshed.data.map((svc: any) => ({
+          ...svc,
+          image: svc.imageUrl || svc.image || '', // Ensure 'image' field is populated from imageUrl
+        }));
+        setServices(normalizedServices as any);
       } else {
         setServices(services.filter((s) => s.id !== id));
       }
@@ -149,7 +164,8 @@ export default function AdminServices() {
       imageUrl = dataUrl;
     }
 
-    setEditing({ ...editing, image: imageUrl });
+    // Update both 'image' and 'imageUrl' fields to ensure consistency
+    setEditing({ ...editing, image: imageUrl, imageUrl });
   }, [editing]);
 
   const processGalleryFiles = useCallback(async (files: FileList | null) => {

@@ -4,11 +4,13 @@ import { useSiteData } from '../../context/SiteDataContext';
 import { translations } from '../../i18n/translations';
 import { getContactApiEndpoints } from '../../utils/contactApi';
 import { useMetaTags } from '../../utils/useMetaTags';
+import { slugify } from '../../utils/slugify';
 
-const buildServiceDetailUrl = (serviceId: string) => {
+const buildServiceDetailUrl = (serviceTitle: string) => {
   const base = typeof window !== 'undefined' ? window.location.origin : '';
   const basePath = typeof window !== 'undefined' ? import.meta.env.BASE_URL || '/' : '/';
-  return `${base}${basePath.replace(/\/$/, '')}/services/${serviceId}`;
+  const slug = slugify(serviceTitle);
+  return `${base}${basePath.replace(/\/$/, '')}/services/${slug}`;
 };
 
 export default function ServicesPage() {
@@ -127,8 +129,8 @@ export default function ServicesPage() {
     handleFallbackEmail();
   };
 
-  const openServiceDetail = useCallback((serviceId: string) => {
-    const url = buildServiceDetailUrl(serviceId);
+  const openServiceDetail = useCallback((serviceTitle: string) => {
+    const url = buildServiceDetailUrl(serviceTitle);
     const detailWindow = window.open(url, '_blank');
     if (detailWindow) {
       detailWindow.focus();
@@ -215,7 +217,7 @@ export default function ServicesPage() {
                 <div className="flex flex-wrap gap-3">
                   <button
                     type="button"
-                    onClick={() => openServiceDetail(service.id)}
+                    onClick={() => openServiceDetail(service.title)}
                     className="inline-flex items-center gap-2 px-5 py-2.5 border border-gray-200 text-gray-700 text-sm font-semibold rounded-lg hover:border-orange-300 hover:text-orange-600 hover:bg-orange-50 transition-colors whitespace-nowrap"
                   >
                     View details
