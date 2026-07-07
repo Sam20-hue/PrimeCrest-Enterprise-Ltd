@@ -218,25 +218,45 @@ try {
             $row = fetch_one($conn, 'SELECT * FROM settings LIMIT 1');
             echo json_encode($row ?: []);
         } elseif ($method === 'PUT') {
-            $fields = [];
-            $values = [];
-            $types = '';
-            
-            foreach (['siteName', 'logo', 'phone', 'email', 'address', 'footerText', 'aboutText', 'heroTitle', 'heroSubtitle', 'heroImage'] as $field) {
-                if (isset($input[$field])) {
-                    $fields[] = "$field = ?";
-                    $values[] = $input[$field];
-                    $types .= 's';
+            // Persist textual settings to a static JSON file so wording remains static.
+            $dataDir = __DIR__ . '/data';
+            if (!is_dir($dataDir)) mkdir($dataDir, 0755, true);
+            $file = $dataDir . '/settings.json';
+            $current = is_file($file) ? (json_decode(file_get_contents($file), true) ?: []) : [];
+
+            // Treat fields that likely contain image data separately; everything else is textual/static.
+            $imagePattern = '/logo|image|photo|avatar/i';
+            $textPayload = [];
+            $imagePayload = [];
+            foreach ($input as $k => $v) {
+                if (preg_match($imagePattern, $k)) {
+                    $imagePayload[$k] = $v;
+                } else {
+                    $textPayload[$k] = $v;
                 }
             }
-            
-            if (!empty($fields)) {
-                $query = 'UPDATE settings SET ' . implode(', ', $fields) . ', updated_at = NOW()';
-                $result = query_json($conn, $query, $values, $types);
-                echo json_encode(['success' => true, 'message' => 'Settings updated']);
-            } else {
-                echo json_encode(['error' => 'No fields to update']);
+
+            // Merge textual settings into the static settings file
+            $merged = array_merge($current, $textPayload);
+            file_put_contents($file, json_encode($merged, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+
+            // If DB connection exists and image-like fields were provided, update them in DB.
+            if (!empty($imagePayload) && $conn instanceof mysqli) {
+                $fields = [];
+                $values = [];
+                $types = '';
+                foreach ($imagePayload as $k => $v) {
+                    $fields[] = "$k = ?";
+                    $values[] = is_array($v) ? json_encode($v, JSON_UNESCAPED_UNICODE) : $v;
+                    $types .= 's';
+                }
+                if (!empty($fields)) {
+                    $query = 'UPDATE settings SET ' . implode(', ', $fields) . ', updated_at = NOW()';
+                    query_json($conn, $query, $values, $types);
+                }
             }
+
+            echo json_encode(['success' => true, 'message' => 'Settings updated (text saved as static, images persisted to DB if provided)']);
         }
     }
     

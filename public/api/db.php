@@ -186,6 +186,47 @@ function safeQuery(?mysqli $conn, string $query, array $params = [], string $typ
     }
 }
 
+/**
+ * Execute an UPDATE/DELETE/other prepared statement returning boolean.
+ * For file-fallback mode, provide a best-effort write behavior for `settings`.
+ */
+function query_json(?mysqli $conn, string $query, array $params = [], string $types = ''): bool {
+    if ($conn === null) {
+        // Handle UPDATE settings -> write to data/settings.json
+        if (preg_match('/UPDATE\s+settings/i', $query)) {
+            $dataDir = __DIR__ . '/data';
+            if (!is_dir($dataDir)) mkdir($dataDir, 0755, true);
+            $file = $dataDir . '/settings.json';
+            $current = is_file($file) ? (json_decode(file_get_contents($file), true) ?: []) : [];
+            if (preg_match('/UPDATE\s+settings\s+SET\s+(.*?)\s*,\s*updated_at/i', $query, $m)) {
+                $setPart = $m[1];
+                $pairs = array_map('trim', explode(',', $setPart));
+                $keys = array_map(fn($p) => trim(explode('=', $p)[0]), $pairs);
+                foreach ($keys as $i => $k) {
+                    $k = trim($k, "` ");
+                    $current[$k] = $params[$i] ?? $current[$k] ?? null;
+                }
+                file_put_contents($file, json_encode($current, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+                return true;
+            }
+            // Fallback: write provided associative array if params contains one
+            if (isset($params[0]) && is_array($params[0])) {
+                $merged = array_merge($current, $params[0]);
+                file_put_contents($file, json_encode($merged, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+                return true;
+            }
+        }
+        return true;
+    }
+
+    $stmt = $conn->prepare($query);
+    if ($stmt === false) return false;
+    if ($types !== '') {
+        $stmt->bind_param($types, ...$params);
+    }
+    return $stmt->execute();
+}
+
 function fetch_all_assoc(?mysqli $conn, string $query, array $params = [], string $types = ''): array {
     $result = safeQuery($conn, $query, $params, $types);
     if (is_array($result)) {

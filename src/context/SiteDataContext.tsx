@@ -341,7 +341,29 @@ export function SiteDataProvider({ children }: { children: ReactNode }) {
   const updateSettings = (s: SiteSettings) => {
     setSettings(s);
     localStorage.setItem('pc_settings', JSON.stringify(s));
-    syncToApi(s, services, gallery, blogPosts, testimonials, team, authors, subscribers);
+    // Persist settings via API PUT /api/settings when possible; fall back to full sync
+    (async () => {
+      try {
+        // Send only textual/customizable fields to the settings endpoint.
+        const imagePattern = /logo|image|photo|avatar/i;
+        const textPayload: any = {};
+        for (const [k, v] of Object.entries(s)) {
+          if (!imagePattern.test(k)) textPayload[k] = v;
+        }
+
+        const res = await mysqlService.updateSettings(textPayload);
+        if (!res.ok) {
+          // fallback to syncAll which writes full payload (file-fallback supports /api/sync)
+          await mysqlService.syncAll({ settings: s, services, gallery, blog: blogPosts, authors, team, products: [], testimonials, subscribers });
+        }
+      } catch {
+        try {
+          await mysqlService.syncAll({ settings: s, services, gallery, blog: blogPosts, authors, team, products: [], testimonials, subscribers });
+        } catch {
+          // ignore
+        }
+      }
+    })();
   };
 
   const addSubscriber = async (email: string): Promise<boolean> => {
