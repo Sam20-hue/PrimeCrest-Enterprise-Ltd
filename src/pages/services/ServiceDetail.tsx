@@ -75,7 +75,8 @@ export default function ServiceDetailPage() {
     );
   }
 
-  const galleryImages = service.images && service.images.length > 0 ? service.images : [service.image].filter(Boolean);
+  const galleryImages = Array.isArray(service.images) && service.images.length > 0 ? service.images : [service.image].filter(Boolean);
+  const features = Array.isArray(service.features) ? service.features : [];
 
   return (
     <main className="min-h-screen bg-white text-slate-900">
@@ -130,7 +131,7 @@ export default function ServiceDetailPage() {
               <h3 className="text-lg font-bold text-gray-900">Why choose this service?</h3>
               <p className="text-sm text-gray-600">A clear set of benefits and proven features you can trust.</p>
               <ul className="mt-4 space-y-3">
-                {service.features.map((feature, idx) => (
+                {features.map((feature, idx) => (
                   <li key={idx} className="flex items-start gap-3">
                     <span className="mt-1 inline-flex h-7 w-7 items-center justify-center rounded-full bg-orange-100 text-orange-600">✓</span>
                     <span className="text-sm text-gray-700">{feature}</span>

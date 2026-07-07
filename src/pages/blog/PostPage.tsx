@@ -2,7 +2,6 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useSiteData } from '../../context/SiteDataContext';
 import { translations } from '../../i18n/translations';
 import { useMetaTags } from '../../utils/useMetaTags';
-import { mockAuthors } from '../../mocks/authors';
 
 const formatDate = (value: string) => {
   const date = new Date(value);
@@ -27,7 +26,7 @@ export default function BlogPostPage() {
   });
 
   // Use authors from context, fallback to mockAuthors if empty
-  const authorsList = authors && authors.length > 0 ? authors : mockAuthors;
+  const authorsList = authors;
   
   const author = post
     ? authorsList.find((a) => a.id === post.authorId) ||

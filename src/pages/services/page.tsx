@@ -202,7 +202,7 @@ export default function ServicesPage() {
 
                 {/* Features */}
                 <div className="grid grid-cols-2 gap-2 mb-5">
-                  {service.features.slice(0, 6).map((f, i) => (
+                  {(service.features || []).slice(0, 6).map((f, i) => (
                     <div key={i} className="flex items-center gap-2 text-sm text-gray-600">
                       <span className="w-4 h-4 flex items-center justify-center text-orange-500 flex-shrink-0">
                         <i className="ri-checkbox-circle-fill text-sm" />

@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 /**
  * Database Configuration & Connection
  * Shared hosting connection to Truhost MySQL database
@@ -41,17 +41,25 @@ loadDotEnv(__DIR__ . '/.env');
 loadDotEnv(__DIR__ . '/../.env');
 loadDotEnv(__DIR__ . '/../../.env');
 
-$db_host = getenv('DB_HOST') ?: 'localhost';
-$db_user = getenv('DB_USER') ?: 'root';
-$db_pass = getenv('DB_PASS') ?: '';
-$db_name = getenv('DB_NAME') ?: 'primecrest_enterprise';
-$db_port = getenv('DB_PORT') ?: 3306;
+$db_host = getenv('DB_HOST') ?: getenv('MYSQL_HOST') ?: 'localhost';
+$db_user = getenv('DB_USER') ?: getenv('MYSQL_USER') ?: 'root';
+$db_pass = getenv('DB_PASS') ?: getenv('MYSQL_PASSWORD') ?: '';
+$db_name = getenv('DB_NAME') ?: getenv('MYSQL_DATABASE') ?: getenv('MYSQL_DB') ?: 'primecrest_enterprise';
+$db_port = getenv('DB_PORT') ?: getenv('MYSQL_PORT') ?: 3306;
 $db_charset = getenv('DB_CHARSET') ?: 'utf8mb4';
 
-$conn = new mysqli($db_host, $db_user, $db_pass, $db_name, (int)$db_port);
-if ($conn->connect_error) {
+mysqli_report(MYSQLI_REPORT_OFF);
+$conn = @new mysqli($db_host, $db_user, $db_pass, $db_name, (int)$db_port);
+if ($conn === false || $conn->connect_error) {
+    header('Content-Type: application/json; charset=utf-8');
     http_response_code(500);
-    die(json_encode(['error' => 'Database connection failed: ' . $conn->connect_error]));
+    echo json_encode([
+        'error' => 'Database connection failed: ' . ($conn?->connect_error ?? 'unknown error'),
+        'db_host' => $db_host,
+        'db_user' => $db_user,
+        'db_name' => $db_name,
+    ]);
+    exit;
 }
 
 $conn->set_charset($db_charset);
@@ -155,6 +163,28 @@ function fetch_one(mysqli $conn, string $query, array $params = [], string $type
     return null;
 }
 
+function addColumnIfMissing(mysqli $conn, string $table, string $columnSql): bool {
+    $parts = preg_split('/\s+/', trim($columnSql));
+    $columnName = $parts[0] ?? '';
+    if ($columnName === '') {
+        return false;
+    }
+
+    $stmt = $conn->prepare('SELECT COUNT(*) AS c FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?');
+    if ($stmt === false) {
+        return false;
+    }
+
+    $stmt->bind_param('ss', $table, $columnName);
+    $stmt->execute();
+    $result = $stmt->get_result()->fetch_assoc();
+    if (intval($result['c'] ?? 0) > 0) {
+        return true;
+    }
+
+    return $conn->query("ALTER TABLE `$table` ADD COLUMN $columnSql") !== false;
+}
+
 function ensureSchema(mysqli $conn): void {
     $conn->query("CREATE TABLE IF NOT EXISTS settings (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -196,6 +226,9 @@ function ensureSchema(mysqli $conn): void {
         subtitle VARCHAR(255) DEFAULT NULL,
         icon VARCHAR(100) DEFAULT NULL,
         description TEXT DEFAULT NULL,
+        imageUrl VARCHAR(1000) DEFAULT NULL,
+        images LONGTEXT DEFAULT NULL,
+        imagesCaptions LONGTEXT DEFAULT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
@@ -204,25 +237,31 @@ function ensureSchema(mysqli $conn): void {
         id INT AUTO_INCREMENT PRIMARY KEY,
         title VARCHAR(255) DEFAULT NULL,
         category VARCHAR(255) DEFAULT NULL,
-        imageUrl VARCHAR(500) DEFAULT NULL,
+        imageUrl VARCHAR(1000) DEFAULT NULL,
+        images LONGTEXT DEFAULT NULL,
+        imagesCaptions LONGTEXT DEFAULT NULL,
         description TEXT DEFAULT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
 
     $conn->query("CREATE TABLE IF NOT EXISTS blog (
         id INT AUTO_INCREMENT PRIMARY KEY,
         title VARCHAR(255) DEFAULT NULL,
         excerpt TEXT DEFAULT NULL,
-        content TEXT DEFAULT NULL,
+        content LONGTEXT DEFAULT NULL,
         category VARCHAR(255) DEFAULT NULL,
-        imageUrl VARCHAR(500) DEFAULT NULL,
+        imageUrl VARCHAR(1000) DEFAULT NULL,
+        images LONGTEXT DEFAULT NULL,
+        imagesCaptions LONGTEXT DEFAULT NULL,
         author VARCHAR(255) DEFAULT NULL,
         authorId VARCHAR(255) DEFAULT NULL,
         published TINYINT(1) DEFAULT 0,
         published_at DATETIME DEFAULT NULL,
         date VARCHAR(100) DEFAULT NULL,
         newsletterSent TINYINT(1) DEFAULT 0,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
 
     $conn->query("CREATE TABLE IF NOT EXISTS products (
@@ -279,6 +318,45 @@ function ensureSchema(mysqli $conn): void {
         email VARCHAR(255) UNIQUE,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+
+    foreach ([
+        ['services', 'imageUrl VARCHAR(1000) DEFAULT NULL'],
+        ['services', 'images LONGTEXT DEFAULT NULL'],
+        ['services', 'imagesCaptions LONGTEXT DEFAULT NULL'],
+        ['services', 'subtitle VARCHAR(255) DEFAULT NULL'],
+        ['services', 'icon VARCHAR(100) DEFAULT NULL'],
+        ['services', 'description TEXT DEFAULT NULL'],
+        ['services', 'updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP'],
+        ['gallery', 'imageUrl VARCHAR(1000) DEFAULT NULL'],
+        ['gallery', 'images LONGTEXT DEFAULT NULL'],
+        ['gallery', 'imagesCaptions LONGTEXT DEFAULT NULL'],
+        ['gallery', 'description TEXT DEFAULT NULL'],
+        ['gallery', 'updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP'],
+        ['blog', 'imageUrl VARCHAR(1000) DEFAULT NULL'],
+        ['blog', 'images LONGTEXT DEFAULT NULL'],
+        ['blog', 'imagesCaptions LONGTEXT DEFAULT NULL'],
+        ['blog', 'author VARCHAR(255) DEFAULT NULL'],
+        ['blog', 'authorId VARCHAR(255) DEFAULT NULL'],
+        ['blog', 'published TINYINT(1) DEFAULT 0'],
+        ['blog', 'published_at DATETIME DEFAULT NULL'],
+        ['blog', 'date VARCHAR(100) DEFAULT NULL'],
+        ['blog', 'newsletterSent TINYINT(1) DEFAULT 0'],
+        ['blog', 'updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP'],
+        ['testimonials', 'name VARCHAR(255) DEFAULT NULL'],
+        ['testimonials', 'role VARCHAR(255) DEFAULT NULL'],
+        ['testimonials', 'photo VARCHAR(500) DEFAULT NULL'],
+        ['testimonials', 'quote TEXT DEFAULT NULL'],
+        ['team', 'imageUrl VARCHAR(500) DEFAULT NULL'],
+        ['authors', 'imageUrl VARCHAR(500) DEFAULT NULL'],
+        ['authors', 'bio TEXT DEFAULT NULL'],
+        ['authors', 'subtitle VARCHAR(255) DEFAULT NULL'],
+        ['authors', 'joinDate VARCHAR(100) DEFAULT NULL'],
+        ['authors', 'lastActive VARCHAR(100) DEFAULT NULL'],
+        ['authors', 'linkedIn VARCHAR(255) DEFAULT NULL'],
+        ['authors', 'upwork VARCHAR(255) DEFAULT NULL'],
+    ] as [$table, $columnSql]) {
+        addColumnIfMissing($conn, $table, $columnSql);
+    }
 }
 
 ensureSchema($conn);

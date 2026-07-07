@@ -107,6 +107,10 @@ export default function ContactPage() {
     handleFallbackEmail();
   };
 
+  const safePhoneValue = settings.phone ? settings.phone.replace(/[^+\d]/g, '') : '';
+  const safeEmailValue = settings.email || 'info@primecrestenterprise.com';
+  const safeAddress = settings.address || 'Nairobi, Kenya';
+
   return (
     <main className="pt-24 min-h-screen pb-20">
       {/* Header */}
@@ -130,9 +134,9 @@ export default function ContactPage() {
           {/* Contact Info */}
           <div className="lg:col-span-2 space-y-6">
             {[
-              { icon: 'ri-phone-fill', title: t.phone_title, value: settings.phone, href: `tel:${settings.phone}` },
-              { icon: 'ri-mail-fill', title: t.email_title, value: settings.email, href: `mailto:${settings.email}` },
-              { icon: 'ri-map-pin-fill', title: t.address_title, value: settings.address, href: '#' },
+              { icon: 'ri-phone-fill', title: t.phone_title, value: settings.phone || '0721579821', href: `tel:${safePhoneValue}` },
+              { icon: 'ri-mail-fill', title: t.email_title, value: safeEmailValue, href: `mailto:${safeEmailValue}` },
+              { icon: 'ri-map-pin-fill', title: t.address_title, value: safeAddress, href: '#' },
               { icon: 'ri-time-fill', title: t.hours_title, value: t.hours, href: '#' },
             ].map((item) => (
               <div key={item.title} className="flex items-start gap-4 p-5 bg-white rounded-xl border border-gray-100">
@@ -151,8 +155,8 @@ export default function ContactPage() {
             <div className="p-5 bg-orange-600 rounded-xl text-white">
               <h4 className="font-bold mb-2">Emergency Support</h4>
               <p className="text-orange-100 text-sm mb-3">For urgent security matters, our emergency line is available 24/7.</p>
-              <a href={`tel:${settings.phone.replace(/[^+\d]/g, '')}`} className="inline-flex items-center gap-2 text-sm font-bold text-white cursor-pointer">
-                <i className="ri-phone-fill" /> {settings.phone}
+              <a href={safePhoneValue ? `tel:${safePhoneValue}` : '#'} className="inline-flex items-center gap-2 text-sm font-bold text-white cursor-pointer">
+                <i className="ri-phone-fill" /> {settings.phone || '0721579821'}
               </a>
             </div>
           </div>

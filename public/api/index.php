@@ -15,17 +15,80 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 }
 
 require_once __DIR__ . '/db.php';
+ensureSchema($conn);
+
+function getExistingColumns(mysqli $conn, string $table): array {
+    $stmt = $conn->prepare('SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?');
+    if (!$stmt) {
+        return [];
+    }
+    $stmt->bind_param('s', $table);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    $columns = [];
+    while ($row = $result->fetch_assoc()) {
+        $columns[] = $row['COLUMN_NAME'];
+    }
+    return $columns;
+}
+
+function buildFieldData(array $input, array $columns, bool $forUpdate = false): array {
+    $fields = [];
+    $values = [];
+    $types = '';
+    foreach ($columns as $column) {
+        if ($forUpdate && !array_key_exists($column, $input)) {
+            continue;
+        }
+        if (!$forUpdate) {
+            if (!array_key_exists($column, $input) && !in_array($column, ['published', 'newsletterSent', 'published_at'], true)) {
+                continue;
+            }
+        }
+        $value = $input[$column] ?? null;
+        if ($column === 'published' || $column === 'newsletterSent') {
+            $value = !empty($input[$column]) ? 1 : 0;
+            $types .= 'i';
+        } elseif ($column === 'price') {
+            $value = isset($input['price']) ? floatval($input['price']) : 0.0;
+            $types .= 'd';
+        } elseif ($column === 'published_at') {
+            $value = $input['published_at'] ?? ($input['date'] ?? null);
+            $types .= 's';
+        } elseif ($column === 'images' || $column === 'imagesCaptions') {
+            if (is_array($value)) {
+                $value = json_encode($value, JSON_UNESCAPED_UNICODE);
+            }
+            $types .= 's';
+        } else {
+            if (is_array($value)) {
+                $value = json_encode($value, JSON_UNESCAPED_UNICODE);
+            }
+            $types .= 's';
+        }
+        if ($forUpdate) {
+            $fields[] = "$column = ?";
+        } else {
+            $fields[] = $column;
+        }
+        $values[] = $value;
+    }
+    return [$fields, $values, $types];
+}
 
 // Parse request
 $method = $_SERVER['REQUEST_METHOD'];
 $path = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
-$pathParts = array_filter(explode('/', $path));
-$endpoint = $pathParts[array_key_last($pathParts)] ?? '';
-$resource = $pathParts[count($pathParts) - 2] ?? '';
+$pathParts = array_values(array_filter(explode('/', $path), fn($part) => $part !== ''));
+if (isset($pathParts[0]) && $pathParts[0] === 'api') {
+    array_shift($pathParts);
+}
+$resource = $pathParts[0] ?? '';
+$endpoint = end($pathParts) ?: '';
+$id = isset($pathParts[1]) && ctype_digit($pathParts[1]) ? $pathParts[1] : null;
 
-// Get ID from URL if present
-$id = null;
-if (preg_match('/\/(\d+)\/?$/', $path, $matches)) {
+// Get ID from URL if present when using fallback numeric segments
+if ($id === null && preg_match('/\/(\d+)\/?$/', $path, $matches)) {
     $id = $matches[1];
 }
 
@@ -66,13 +129,17 @@ try {
             $rows = fetch_all_assoc($conn, 'SELECT * FROM services ORDER BY id');
             echo json_encode($rows);
         } elseif ($method === 'POST') {
-            $stmt = $conn->prepare('INSERT INTO services (title, subtitle, icon, description) VALUES (?, ?, ?, ?)');
-            $stmt->bind_param('ssss', $input['title'], $input['subtitle'], $input['icon'], $input['description']);
+            $stmt = $conn->prepare('INSERT INTO services (title, subtitle, icon, description, imageUrl, images, imagesCaptions) VALUES (?, ?, ?, ?, ?, ?, ?)');
+            $images = is_array($input['images'] ?? null) ? json_encode($input['images'], JSON_UNESCAPED_UNICODE) : ($input['images'] ?? null);
+            $captions = is_array($input['imagesCaptions'] ?? null) ? json_encode($input['imagesCaptions'], JSON_UNESCAPED_UNICODE) : ($input['imagesCaptions'] ?? null);
+            $stmt->bind_param('sssssss', $input['title'], $input['subtitle'], $input['icon'], $input['description'], $input['imageUrl'], $images, $captions);
             $stmt->execute();
             echo json_encode(['id' => $conn->insert_id, 'success' => true]);
         } elseif ($method === 'PUT' && $id) {
-            $stmt = $conn->prepare('UPDATE services SET title = ?, subtitle = ?, icon = ?, description = ? WHERE id = ?');
-            $stmt->bind_param('ssssi', $input['title'], $input['subtitle'], $input['icon'], $input['description'], $id);
+            $stmt = $conn->prepare('UPDATE services SET title = ?, subtitle = ?, icon = ?, description = ?, imageUrl = ?, images = ?, imagesCaptions = ? WHERE id = ?');
+            $images = is_array($input['images'] ?? null) ? json_encode($input['images'], JSON_UNESCAPED_UNICODE) : ($input['images'] ?? null);
+            $captions = is_array($input['imagesCaptions'] ?? null) ? json_encode($input['imagesCaptions'], JSON_UNESCAPED_UNICODE) : ($input['imagesCaptions'] ?? null);
+            $stmt->bind_param('sssssssi', $input['title'], $input['subtitle'], $input['icon'], $input['description'], $input['imageUrl'], $images, $captions, $id);
             $stmt->execute();
             echo json_encode(['success' => true]);
         } elseif ($method === 'DELETE' && $id) {
@@ -89,13 +156,17 @@ try {
             $rows = fetch_all_assoc($conn, 'SELECT * FROM gallery ORDER BY id');
             echo json_encode($rows);
         } elseif ($method === 'POST') {
-            $stmt = $conn->prepare('INSERT INTO gallery (title, imageUrl) VALUES (?, ?)');
-            $stmt->bind_param('ss', $input['title'], $input['imageUrl']);
+            $images = is_array($input['images'] ?? null) ? json_encode($input['images'], JSON_UNESCAPED_UNICODE) : ($input['images'] ?? null);
+            $captions = is_array($input['imagesCaptions'] ?? null) ? json_encode($input['imagesCaptions'], JSON_UNESCAPED_UNICODE) : ($input['imagesCaptions'] ?? null);
+            $stmt = $conn->prepare('INSERT INTO gallery (title, category, imageUrl, images, imagesCaptions, description) VALUES (?, ?, ?, ?, ?, ?)');
+            $stmt->bind_param('ssssss', $input['title'], $input['category'], $input['imageUrl'], $images, $captions, $input['description']);
             $stmt->execute();
             echo json_encode(['id' => $conn->insert_id, 'success' => true]);
         } elseif ($method === 'PUT' && $id) {
-            $stmt = $conn->prepare('UPDATE gallery SET title = ?, imageUrl = ? WHERE id = ?');
-            $stmt->bind_param('ssi', $input['title'], $input['imageUrl'], $id);
+            $images = is_array($input['images'] ?? null) ? json_encode($input['images'], JSON_UNESCAPED_UNICODE) : ($input['images'] ?? null);
+            $captions = is_array($input['imagesCaptions'] ?? null) ? json_encode($input['imagesCaptions'], JSON_UNESCAPED_UNICODE) : ($input['imagesCaptions'] ?? null);
+            $stmt = $conn->prepare('UPDATE gallery SET title = ?, category = ?, imageUrl = ?, images = ?, imagesCaptions = ?, description = ? WHERE id = ?');
+            $stmt->bind_param('ssssssi', $input['title'], $input['category'], $input['imageUrl'], $images, $captions, $input['description'], $id);
             $stmt->execute();
             echo json_encode(['success' => true]);
         } elseif ($method === 'DELETE' && $id) {
@@ -112,13 +183,19 @@ try {
             $rows = fetch_all_assoc($conn, 'SELECT * FROM blog ORDER BY published_at DESC');
             echo json_encode($rows);
         } elseif ($method === 'POST') {
-            $stmt = $conn->prepare('INSERT INTO blog (title, excerpt, content, published_at) VALUES (?, ?, ?, NOW())');
-            $stmt->bind_param('sss', $input['title'], $input['excerpt'], $input['content']);
+            $images = is_array($input['images'] ?? null) ? json_encode($input['images'], JSON_UNESCAPED_UNICODE) : ($input['images'] ?? null);
+            $captions = is_array($input['imagesCaptions'] ?? null) ? json_encode($input['imagesCaptions'], JSON_UNESCAPED_UNICODE) : ($input['imagesCaptions'] ?? null);
+            $published = !empty($input['published']) ? 1 : 0;
+            $stmt = $conn->prepare('INSERT INTO blog (title, excerpt, content, category, imageUrl, images, imagesCaptions, author, authorId, published, date, published_at, newsletterSent) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+            $stmt->bind_param('ssssssssisssi', $input['title'], $input['excerpt'], $input['content'], $input['category'], $input['imageUrl'], $images, $captions, $input['author'], $input['authorId'], $published, $input['date'], $input['published_at'] ?? $input['date'], !empty($input['newsletterSent']) ? 1 : 0);
             $stmt->execute();
             echo json_encode(['id' => $conn->insert_id, 'success' => true]);
         } elseif ($method === 'PUT' && $id) {
-            $stmt = $conn->prepare('UPDATE blog SET title = ?, excerpt = ?, content = ? WHERE id = ?');
-            $stmt->bind_param('sssi', $input['title'], $input['excerpt'], $input['content'], $id);
+            $images = is_array($input['images'] ?? null) ? json_encode($input['images'], JSON_UNESCAPED_UNICODE) : ($input['images'] ?? null);
+            $captions = is_array($input['imagesCaptions'] ?? null) ? json_encode($input['imagesCaptions'], JSON_UNESCAPED_UNICODE) : ($input['imagesCaptions'] ?? null);
+            $published = !empty($input['published']) ? 1 : 0;
+            $stmt = $conn->prepare('UPDATE blog SET title = ?, excerpt = ?, content = ?, category = ?, imageUrl = ?, images = ?, imagesCaptions = ?, author = ?, authorId = ?, published = ?, date = ?, published_at = ?, newsletterSent = ? WHERE id = ?');
+            $stmt->bind_param('ssssssssisssii', $input['title'], $input['excerpt'], $input['content'], $input['category'], $input['imageUrl'], $images, $captions, $input['author'], $input['authorId'], $published, $input['date'], $input['published_at'] ?? $input['date'], !empty($input['newsletterSent']) ? 1 : 0, $id);
             $stmt->execute();
             echo json_encode(['success' => true]);
         } elseif ($method === 'DELETE' && $id) {

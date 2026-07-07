@@ -20,6 +20,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 }
 
 require_once __DIR__ . '/db.php';
+ensureSchema($conn);
 
 /**
  * @param int $code
@@ -46,7 +47,11 @@ function respond(int $code, mixed $payload): void {
     }
 
     http_response_code($code);
-    echo json_encode($payload);
+    $json = json_encode($payload);
+    if ($json === false) {
+        $json = json_encode(['error' => 'Unable to encode response as JSON']);
+    }
+    echo preg_replace('/^\xEF\xBB\xBF+/', '', $json);
     exit;
 }
 
@@ -55,7 +60,23 @@ function getRequestBody(): ?array {
     if ($input === false || trim($input) === '') {
         return null;
     }
-    return json_decode($input, true);
+
+    $decoded = json_decode($input, true);
+    if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+        return $decoded;
+    }
+
+    if (!empty($_POST)) {
+        return $_POST;
+    }
+
+    $contentType = strtolower($_SERVER['CONTENT_TYPE'] ?? '');
+    if (strpos($contentType, 'application/x-www-form-urlencoded') !== false) {
+        parse_str($input, $parsed);
+        return $parsed;
+    }
+
+    return null;
 }
 
 function getRandomBytes(int $length): string {
@@ -250,7 +271,7 @@ if ($resource === 'auth') {
 if ($resource === 'settings') {
     if ($method === 'GET') {
         $row = fetch_one($conn, 'SELECT * FROM settings LIMIT 1');
-        respond(200, $row ?: []);
+        respond(200, $row ?: null);
     }
     if ($method === 'PUT') {
         if (!is_array($payload)) {
@@ -282,13 +303,30 @@ if ($resource === 'sync') {
             }
             switch ($collection) {
                 case 'services':
-                    safeQuery($conn, 'INSERT INTO services (title, subtitle, icon, description) VALUES (?, ?, ?, ?)', [$item['title'] ?? null, $item['subtitle'] ?? null, $item['icon'] ?? null, $item['description'] ?? null], 'ssss');
+                    safeQuery($conn, 'INSERT INTO services (title, subtitle, icon, description, imageUrl, images, imagesCaptions) VALUES (?, ?, ?, ?, ?, ?, ?)', [$item['title'] ?? null, $item['subtitle'] ?? null, $item['icon'] ?? null, $item['description'] ?? null, $item['imageUrl'] ?? null, is_array($item['images'] ?? null) ? json_encode($item['images'], JSON_UNESCAPED_UNICODE) : ($item['images'] ?? null), is_array($item['imagesCaptions'] ?? null) ? json_encode($item['imagesCaptions'], JSON_UNESCAPED_UNICODE) : ($item['imagesCaptions'] ?? null)], 'sssssss');
                     break;
                 case 'gallery':
-                    safeQuery($conn, 'INSERT INTO gallery (title, category, imageUrl, description) VALUES (?, ?, ?, ?)', [$item['title'] ?? null, $item['category'] ?? null, $item['imageUrl'] ?? null, $item['description'] ?? null], 'ssss');
+                    $imagesValue = null;
+                    if (!empty($item['images'])) {
+                        $imagesValue = is_array($item['images']) ? json_encode($item['images'], JSON_UNESCAPED_UNICODE) : $item['images'];
+                    }
+                    $imagesCaptionsValue = null;
+                    if (!empty($item['imagesCaptions'])) {
+                        $imagesCaptionsValue = is_array($item['imagesCaptions']) ? json_encode($item['imagesCaptions'], JSON_UNESCAPED_UNICODE) : $item['imagesCaptions'];
+                    }
+                    safeQuery($conn, 'INSERT INTO gallery (title, category, imageUrl, images, imagesCaptions, description) VALUES (?, ?, ?, ?, ?, ?)', [$item['title'] ?? null, $item['category'] ?? null, $item['imageUrl'] ?? null, $imagesValue, $imagesCaptionsValue, $item['description'] ?? null], 'ssssss');
                     break;
                 case 'blog':
-                    safeQuery($conn, 'INSERT INTO blog (title, excerpt, content, category, imageUrl, author, authorId, published, date, published_at, newsletterSent) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', [$item['title'] ?? null, $item['excerpt'] ?? null, $item['content'] ?? null, $item['category'] ?? null, $item['imageUrl'] ?? null, $item['author'] ?? null, $item['authorId'] ?? null, !empty($item['published']) ? 1 : 0, $item['date'] ?? null, $item['published_at'] ?? ($item['date'] ?? null), !empty($item['newsletterSent']) ? 1 : 0], 'ssssssisssi');
+                    // Allow storing multiple images as JSON in the `images` column if provided.
+                    $imagesValue = null;
+                    if (!empty($item['images'])) {
+                        $imagesValue = is_array($item['images']) ? json_encode($item['images'], JSON_UNESCAPED_UNICODE) : $item['images'];
+                    }
+                    $imagesCaptionsValue = null;
+                    if (!empty($item['imagesCaptions'])) {
+                        $imagesCaptionsValue = is_array($item['imagesCaptions']) ? json_encode($item['imagesCaptions'], JSON_UNESCAPED_UNICODE) : $item['imagesCaptions'];
+                    }
+                    safeQuery($conn, 'INSERT INTO blog (title, excerpt, content, category, imageUrl, images, imagesCaptions, author, authorId, published, date, published_at, newsletterSent) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', [$item['title'] ?? null, $item['excerpt'] ?? null, $item['content'] ?? null, $item['category'] ?? null, $item['imageUrl'] ?? null, $imagesValue, $imagesCaptionsValue, $item['author'] ?? null, $item['authorId'] ?? null, !empty($item['published']) ? 1 : 0, $item['date'] ?? null, $item['published_at'] ?? ($item['date'] ?? null), !empty($item['newsletterSent']) ? 1 : 0], 'sssssssssissi');
                     break;
                 case 'products':
                     safeQuery($conn, 'INSERT INTO products (name, description, price, image) VALUES (?, ?, ?, ?)', [$item['name'] ?? null, $item['description'] ?? null, isset($item['price']) ? floatval($item['price']) : 0.0, $item['image'] ?? null], 'sdss');
@@ -316,9 +354,9 @@ if ($resource === 'blog' && $action === 'notify-subscribers' && $method === 'POS
 }
 
 $resourceMap = [
-    'services' => ['table' => 'services', 'columns' => ['title','subtitle','icon','description']],
-    'gallery' => ['table' => 'gallery', 'columns' => ['title','category','imageUrl','description']],
-    'blog' => ['table' => 'blog', 'columns' => ['title','excerpt','content','category','imageUrl','author','authorId','published','date','published_at','newsletterSent']],
+    'services' => ['table' => 'services', 'columns' => ['title','subtitle','icon','description','imageUrl','images','imagesCaptions']],
+    'gallery' => ['table' => 'gallery', 'columns' => ['title','category','imageUrl','images','imagesCaptions','description']],
+    'blog' => ['table' => 'blog', 'columns' => ['title','excerpt','content','category','imageUrl','images','imagesCaptions','author','authorId','published','date','published_at','newsletterSent']],
     'products' => ['table' => 'products', 'columns' => ['name','description','price','image']],
     'testimonials' => ['table' => 'testimonials', 'columns' => ['name','role','photo','quote']],
     'team' => ['table' => 'team', 'columns' => ['name','role','imageUrl']],
@@ -326,8 +364,31 @@ $resourceMap = [
     'subscribers' => ['table' => 'subscribers', 'columns' => ['email']],
 ];
 
+function getTableColumns(mysqli $conn, string $table): array {
+    $stmt = $conn->prepare('SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?');
+    $stmt->bind_param('s', $table);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    $columns = [];
+    while ($row = $result->fetch_assoc()) {
+        $columns[] = $row['COLUMN_NAME'];
+    }
+    return $columns;
+}
+
+function filterColumns(array $desired, array $actual): array {
+    return array_values(array_intersect($desired, $actual));
+}
+
 if (!isset($resourceMap[$resource])) {
     respond(404, ['error' => 'Endpoint not found']);
+}
+
+$actualColumns = getTableColumns($conn, $resourceMap[$resource]['table']);
+$columns = filterColumns($resourceMap[$resource]['columns'], $actualColumns);
+
+if (empty($columns) && $resource !== 'subscribers') {
+    respond(500, ['error' => 'No valid columns available for resource ' . $resource]);
 }
 
 if ($resource === 'subscribers') {
@@ -362,8 +423,6 @@ if ($resource === 'subscribers') {
 }
 
 $table = $resourceMap[$resource]['table'];
-$columns = $resourceMap[$resource]['columns'];
-
 if ($method === 'GET') {
     if ($id === null) {
         $rows = fetch_all_assoc($conn, "SELECT * FROM {$table} ORDER BY id");
@@ -395,7 +454,11 @@ if ($method === 'POST') {
             $values[] = $payload['published_at'] ?? ($payload['date'] ?? null);
             $types .= 's';
         } else {
-            $values[] = $payload[$column] ?? null;
+            $val = $payload[$column] ?? null;
+            if (is_array($val)) {
+                $val = json_encode($val, JSON_UNESCAPED_UNICODE);
+            }
+            $values[] = $val;
             $types .= 's';
         }
     }
@@ -428,7 +491,11 @@ if ($method === 'PUT') {
             $values[] = floatval($payload['price']);
             $types .= 'd';
         } else {
-            $values[] = $payload[$column];
+            $val = $payload[$column];
+            if (is_array($val)) {
+                $val = json_encode($val, JSON_UNESCAPED_UNICODE);
+            }
+            $values[] = $val;
             $types .= 's';
         }
     }

@@ -62,21 +62,56 @@ export default function AdminServices() {
     saveServiceTitles(updated);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!editing) return;
-    const updated = services.find((s) => s.id === editing.id)
-      ? services.map((s) => (s.id === editing.id ? editing : s))
-      : [editing, ...services];
-    setServices(updated);
+    try {
+      let res;
+      // ensure payload uses `imageUrl` (backend expects imageUrl)
+      const payload = { ...editing, imageUrl: (editing as any).image ?? editing.imageUrl };
+      if (services.find((s) => s.id === editing.id)) {
+        const serverId = Number(editing.id) || null;
+        if (serverId) {
+          res = await mysqlService.updateService(serverId.toString(), payload);
+        }
+      } else {
+        res = await mysqlService.createService(payload);
+        if (res && res.ok && res.data && res.data.id) {
+          editing.id = res.data.id.toString();
+        }
+      }
+      if (!res || !res.ok) throw new Error(res?.error || 'Failed to save service');
+      const refreshed = await mysqlService.getServices();
+      if (refreshed.ok && Array.isArray(refreshed.data)) {
+        setServices(refreshed.data as any);
+      }
+    } catch (err) {
+      console.error('[AdminServices] save failed', err);
+      alert('Failed to save service to server. Please try again.');
+      return;
+    }
     setShowForm(false);
     setEditing(null);
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };
 
-  const handleDelete = (id: string) => {
-    setServices(services.filter((s) => s.id !== id));
-    setDeleteConfirm(null);
+  const handleDelete = async (id: string) => {
+    if (!confirm('Delete this service?')) return;
+    try {
+      const result = await mysqlService.deleteService(id);
+      if (!result.ok) throw new Error(result.error || 'Delete failed');
+      const refreshed = await mysqlService.getServices();
+      if (refreshed.ok && Array.isArray(refreshed.data)) {
+        setServices(refreshed.data as any);
+      } else {
+        setServices(services.filter((s) => s.id !== id));
+      }
+    } catch (err) {
+      console.error('[AdminServices] delete failed', err);
+      alert('Failed to delete service on server.');
+    } finally {
+      setDeleteConfirm(null);
+    }
   };
 
   const updateFeature = (idx: number, val: string) => {

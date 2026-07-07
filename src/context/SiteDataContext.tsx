@@ -5,7 +5,6 @@ import { mockGalleryItems } from '../mocks/gallery';
 import { mockBlogPosts } from '../mocks/blog';
 import { mockTestimonials } from '../mocks/testimonials';
 import { mockTeam } from '../mocks/team';
-import { mockAuthors } from '../mocks/authors';
 import type { Lang } from '../i18n/translations';
 
 export interface SocialMedia {
@@ -183,36 +182,125 @@ function loadFromStorage<T>(key: string, fallback: T): T {
   }
 }
 
-function isLocalhostApiUrl(url?: string): boolean {
+function safeString(value: unknown, fallback: string): string {
+  return typeof value === 'string' ? value : fallback;
+}
+
+function safeNumber(value: unknown, fallback: number): number {
+  return typeof value === 'number' ? value : fallback;
+}
+
+function parseJsonArray<T>(value: unknown): T[] {
+  if (Array.isArray(value)) {
+    return value as T[];
+  }
+  if (typeof value !== 'string') {
+    return [];
+  }
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? (parsed as T[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+function normalizeSocialMedia(value: unknown): SocialMedia {
+  const stored = typeof value === 'object' && value !== null ? (value as Partial<SocialMedia>) : {};
+  return {
+    facebook: safeString(stored.facebook, defaultSettings.socialMedia.facebook),
+    instagram: safeString(stored.instagram, defaultSettings.socialMedia.instagram),
+    twitter: safeString(stored.twitter, defaultSettings.socialMedia.twitter),
+    linkedin: safeString(stored.linkedin, defaultSettings.socialMedia.linkedin),
+    whatsapp: safeString(stored.whatsapp, defaultSettings.socialMedia.whatsapp),
+    youtube: safeString(stored.youtube, defaultSettings.socialMedia.youtube),
+    tiktok: safeString(stored.tiktok, defaultSettings.socialMedia.tiktok),
+  };
+}
+
+function normalizeService(value: unknown): Service {
+  const stored = typeof value === 'object' && value !== null ? (value as Partial<Service>) : {};
+  return {
+    id: safeString(stored.id, `${Date.now()}`),
+    title: safeString(stored.title, ''),
+    description: safeString(stored.description, ''),
+    details: safeString(stored.details, ''),
+    icon: safeString(stored.icon, 'ri-tools-line'),
+    image: safeString(stored.image ?? stored.imageUrl, ''),
+    images: parseJsonArray<string>(stored.images).filter((item): item is string => typeof item === 'string'),
+    imagesCaptions: parseJsonArray<string>(stored.imagesCaptions).filter((item): item is string => typeof item === 'string'),
+    features: Array.isArray(stored.features) ? stored.features.filter((item): item is string => typeof item === 'string') : [],
+  };
+}
+
+function normalizeGalleryItem(value: unknown): GalleryItem {
+  const stored = typeof value === 'object' && value !== null ? (value as Partial<GalleryItem>) : {};
+  return {
+    id: safeString(stored.id, `${Date.now()}`),
+    title: safeString(stored.title, ''),
+    category: safeString(stored.category, ''),
+    imageUrl: safeString(stored.imageUrl, ''),
+    description: safeString(stored.description, ''),
+  };
+}
+
+function normalizeBlogPost(value: unknown): BlogPost {
+  const stored = typeof value === 'object' && value !== null ? (value as Partial<BlogPost>) : {};
+  const rawImages = parseJsonArray<unknown>(stored.images);
+  return {
+    id: safeString(stored.id, `${Date.now()}`),
+    title: safeString(stored.title, ''),
+    excerpt: safeString(stored.excerpt, ''),
+    content: safeString(stored.content, ''),
+    date: safeString(stored.date, new Date().toISOString().split('T')[0]),
+    category: safeString(stored.category, ''),
+    imageUrl: safeString(stored.imageUrl, ''),
+    images: rawImages
+      .filter((item): item is { url: string; description?: string } => typeof item === 'object' && item !== null && 'url' in item)
+      .map((item) => ({ url: (item as any).url, description: (item as any).description })),
+    author: safeString(stored.author, ''),
+    authorId: safeString(stored.authorId, ''),
+    published: Boolean(stored.published),
+  };
+}
+
+function isLocalhostApiUrl(url: string | undefined): boolean {
   if (!url) return false;
   return /^(?:https?:\/\/)?(localhost|127\.0\.0\.1)(:\d+)?(?:\/.*)?$/i.test(url.trim());
+}
+
+function normalizeSettings(stored: Partial<SiteSettings>): SiteSettings {
+  return {
+    ...defaultSettings,
+    ...stored,
+    socialMedia: {
+      ...defaultSettings.socialMedia,
+      ...(stored.socialMedia || {}),
+    },
+  };
 }
 
 const SiteDataContext = createContext<SiteDataContextType | null>(null);
 
 export function SiteDataProvider({ children }: { children: ReactNode }) {
   const [settings, setSettings] = useState<SiteSettings>(() => {
-    const stored = loadFromStorage<SiteSettings>('pc_settings', defaultSettings);
-    return {
-      ...defaultSettings,
-      ...stored,
-      socialMedia: { ...defaultSettings.socialMedia, ...(stored.socialMedia || {}) },
-    };
+    const stored = loadFromStorage<Partial<SiteSettings>>('pc_settings', {});
+    return normalizeSettings(stored);
   });
   const [services, setServicesState] = useState<Service[]>(() =>
-    loadFromStorage('pc_services', mockServices)
+    loadFromStorage('pc_services', [] as Service[])
   );
   const [gallery, setGalleryState] = useState<GalleryItem[]>(() =>
-    loadFromStorage('pc_gallery', mockGalleryItems)
+    loadFromStorage('pc_gallery', [] as GalleryItem[])
   );
   const [blogPosts, setBlogPostsState] = useState<BlogPost[]>(() =>
-    loadFromStorage('pc_blog', mockBlogPosts)
+    loadFromStorage('pc_blog', [] as BlogPost[])
   );
   const [testimonials, setTestimonialsState] = useState<Testimonial[]>(() =>
-    loadFromStorage('pc_testimonials', mockTestimonials)
+    loadFromStorage('pc_testimonials', [] as Testimonial[])
   );
   const [team, setTeamState] = useState<TeamMember[]>(() =>
-    loadFromStorage('pc_team', mockTeam)
+    loadFromStorage('pc_team', [] as TeamMember[])
   );
   const [contacts, setContactsState] = useState<Contact[]>([]);
   const [subscribers, setSubscribersState] = useState<string[]>(() => loadFromStorage('pc_subscribers', []));
@@ -221,7 +309,7 @@ export function SiteDataProvider({ children }: { children: ReactNode }) {
     const validLangs: Lang[] = ['en', 'fr', 'es', 'ar', 'de', 'pt'];
     return validLangs.includes(stored) ? stored : 'en';
   });
-  const [authors, setAuthorsState] = useState<Author[]>(() => loadFromStorage('pc_authors', mockAuthors));
+  const [authors, setAuthorsState] = useState<Author[]>(() => loadFromStorage('pc_authors', [] as Author[]));
 
   const syncToApi = async (
     newSettings: SiteSettings,
@@ -355,16 +443,39 @@ export function SiteDataProvider({ children }: { children: ReactNode }) {
     localStorage.setItem('pc_settings', JSON.stringify(merged));
   }, []);
 
+  function shouldApplyRemoteCollection<T>(remoteData: unknown, localStorageKey: string, fallback: T[]): remoteData is T[] {
+    if (!Array.isArray(remoteData)) {
+      return false;
+    }
+    const localData = loadFromStorage<T[]>(localStorageKey, fallback);
+    return remoteData.length > 0 || localData.length === 0;
+  }
+
+  function hasMeaningfulRemoteSettings(remoteSettingsData: Partial<SiteSettings> | null): remoteSettingsData is Partial<SiteSettings> {
+    if (!remoteSettingsData) return false;
+    return Object.entries(remoteSettingsData).some(
+      ([key, value]) => key in defaultSettings && value !== null && value !== ''
+    );
+  }
+
   useEffect(() => {
     const loadRemoteData = async () => {
       const settingsRes = await mysqlService.getSettings();
-      if (settingsRes.ok && settingsRes.data) {
+      const remoteSettingsData =
+        settingsRes.ok &&
+        settingsRes.data &&
+        typeof settingsRes.data === 'object' &&
+        !Array.isArray(settingsRes.data)
+          ? (settingsRes.data as Partial<SiteSettings>)
+          : null;
+
+      if (hasMeaningfulRemoteSettings(remoteSettingsData)) {
         const remoteSettings = {
           ...defaultSettings,
-          ...(settingsRes.data as Partial<SiteSettings>),
+          ...remoteSettingsData,
           socialMedia: {
             ...defaultSettings.socialMedia,
-            ...((settingsRes.data as Partial<SiteSettings>).socialMedia || {}),
+            ...(remoteSettingsData.socialMedia || {}),
           },
         };
         setSettings(remoteSettings);
@@ -373,37 +484,44 @@ export function SiteDataProvider({ children }: { children: ReactNode }) {
 
       const servicesRes = await mysqlService.getServices();
       if (servicesRes.ok && Array.isArray(servicesRes.data)) {
-        setServicesState(servicesRes.data);
-        localStorage.setItem('pc_services', JSON.stringify(servicesRes.data));
+        const normalizedServices = servicesRes.data.map(normalizeService);
+        if (shouldApplyRemoteCollection<Service>(normalizedServices, 'pc_services', mockServices)) {
+          setServicesState(normalizedServices);
+          localStorage.setItem('pc_services', JSON.stringify(normalizedServices));
+        }
       }
 
       const galleryRes = await mysqlService.getGallery();
-      if (galleryRes.ok && Array.isArray(galleryRes.data)) {
-        setGalleryState(galleryRes.data);
-        localStorage.setItem('pc_gallery', JSON.stringify(galleryRes.data));
+      if (shouldApplyRemoteCollection<GalleryItem>(galleryRes.data, 'pc_gallery', [])) {
+        const normalizedGallery = (galleryRes.data as unknown[]).map(normalizeGalleryItem);
+        setGalleryState(normalizedGallery);
+        localStorage.setItem('pc_gallery', JSON.stringify(normalizedGallery));
       }
 
       const blogRes = await mysqlService.getBlogPosts();
-      if (blogRes.ok && Array.isArray(blogRes.data)) {
-        setBlogPostsState(blogRes.data);
-        localStorage.setItem('pc_blog', JSON.stringify(blogRes.data));
+      // Only apply remote blog posts when the remote data is meaningful or the
+      // local storage is empty. Use an empty fallback to avoid showing dev mocks.
+      if (shouldApplyRemoteCollection<BlogPost>(blogRes.data, 'pc_blog', [])) {
+        const normalizedBlogPosts = (blogRes.data as unknown[]).map(normalizeBlogPost);
+        setBlogPostsState(normalizedBlogPosts);
+        localStorage.setItem('pc_blog', JSON.stringify(normalizedBlogPosts));
       }
 
       const testimonialsRes = await mysqlService.getTestimonials();
-      if (testimonialsRes.ok && Array.isArray(testimonialsRes.data)) {
-        setTestimonialsState(testimonialsRes.data);
+      if (shouldApplyRemoteCollection<Testimonial>(testimonialsRes.data, 'pc_testimonials', [])) {
+        setTestimonialsState(testimonialsRes.data as Testimonial[]);
         localStorage.setItem('pc_testimonials', JSON.stringify(testimonialsRes.data));
       }
 
       const teamRes = await mysqlService.getTeam();
-      if (teamRes.ok && Array.isArray(teamRes.data)) {
-        setTeamState(teamRes.data);
+      if (shouldApplyRemoteCollection<TeamMember>(teamRes.data, 'pc_team', mockTeam)) {
+        setTeamState(teamRes.data as TeamMember[]);
         localStorage.setItem('pc_team', JSON.stringify(teamRes.data));
       }
 
       const authorsRes = await mysqlService.getAuthors();
-      if (authorsRes.ok && Array.isArray(authorsRes.data)) {
-        setAuthorsState(authorsRes.data);
+      if (shouldApplyRemoteCollection<Author>(authorsRes.data, 'pc_authors', mockAuthors)) {
+        setAuthorsState(authorsRes.data as Author[]);
         localStorage.setItem('pc_authors', JSON.stringify(authorsRes.data));
       }
 

@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: GET, POST, DELETE, OPTIONS');
@@ -12,8 +12,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 require_once __DIR__ . '/db.php';
 
 function respond($code, $payload) {
+    if (ob_get_length() !== false) {
+        ob_clean();
+    }
     http_response_code($code);
-    echo json_encode($payload);
+    $json = json_encode($payload);
+    if ($json === false) {
+        $json = json_encode(['error' => 'Unable to encode response as JSON']);
+    }
+    echo preg_replace('/^\xEF\xBB\xBF+/', '', $json);
     exit;
 }
 

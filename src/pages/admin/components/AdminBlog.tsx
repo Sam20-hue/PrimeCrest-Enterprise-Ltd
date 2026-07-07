@@ -46,14 +46,48 @@ export default function AdminBlog() {
       if (match) finalEditing.authorId = match.id;
     }
 
-    const isNewPost = !blogPosts.find((p) => p.id === finalEditing.id);
-    const wasPublished = blogPosts.find((p) => p.id === finalEditing.id)?.published;
+    const isNewPost = !blogPosts.find((p) => String(p.id) === String(finalEditing.id));
+    const wasPublished = blogPosts.find((p) => String(p.id) === String(finalEditing.id))?.published;
     const isNowPublished = finalEditing.published;
 
-    const updated = blogPosts.find((p) => p.id === finalEditing.id)
-      ? blogPosts.map((p) => (p.id === finalEditing.id ? finalEditing : p))
-      : [finalEditing, ...blogPosts];
-    setBlogPosts(updated);
+    // Persist changes to backend API and require success before closing
+    let saveResult;
+    try {
+      if (isNewPost) {
+        saveResult = await mysqlService.createBlogPost(finalEditing);
+      } else {
+        const serverId = Number(finalEditing.id) || null;
+        if (serverId) {
+          saveResult = await mysqlService.updateBlogPost(serverId.toString(), finalEditing);
+        } else {
+          // best-effort: try to find by title and update
+          const posts = await mysqlService.getBlogPosts();
+          const match = posts.ok && Array.isArray(posts.data) ? posts.data.find((p: any) => p.title === finalEditing.title) : null;
+          if (match && match.id) {
+            saveResult = await mysqlService.updateBlogPost(match.id.toString(), finalEditing);
+          }
+        }
+      }
+    } catch (err) {
+      console.error('[AdminBlog] API error while saving', err);
+    }
+
+    if (!saveResult || !saveResult.ok) {
+      // show error and do not close modal so user can retry
+      alert('Failed to save post to server. Please try again or check server logs.');
+      return;
+    }
+
+    // Refresh canonical list from server
+    const refreshed = await mysqlService.getBlogPosts();
+    if (refreshed.ok && Array.isArray(refreshed.data) && refreshed.data.length > 0) {
+      setBlogPosts(refreshed.data as any);
+    } else {
+      const nextPosts = blogPosts.some((p) => String(p.id) === String(finalEditing.id))
+        ? blogPosts.map((p) => String(p.id) === String(finalEditing.id) ? { ...p, ...finalEditing } : p)
+        : [{ ...finalEditing }, ...blogPosts];
+      setBlogPosts(nextPosts);
+    }
     
     // Send notification emails if publishing a new post or just published a draft
     if ((isNewPost || !wasPublished) && isNowPublished && notifySubscribers && subscribers.length > 0) {
@@ -90,9 +124,23 @@ export default function AdminBlog() {
     setTimeout(() => setSaved(false), 2000);
   };
 
-  const handleDelete = (id: string) => {
-    setBlogPosts(blogPosts.filter((p) => p.id !== id));
-    setDeleteConfirm(null);
+  const handleDelete = async (id: string) => {
+    if (!confirm('Delete this post? This action cannot be undone.')) return;
+    try {
+      const result = await mysqlService.deleteBlogPost(id);
+      if (!result.ok) throw new Error(result.error || 'Delete failed');
+      const refreshed = await mysqlService.getBlogPosts();
+      if (refreshed.ok && Array.isArray(refreshed.data)) {
+        setBlogPosts(refreshed.data as any);
+      } else {
+        setBlogPosts(blogPosts.filter((p) => p.id !== id));
+      }
+    } catch (err) {
+      console.error('[AdminBlog] delete failed', err);
+      alert('Failed to delete post on server.');
+    } finally {
+      setDeleteConfirm(null);
+    }
   };
 
   const processFiles = useCallback(async (files: FileList | null) => {

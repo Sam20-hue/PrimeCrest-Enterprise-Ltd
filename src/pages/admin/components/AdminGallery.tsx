@@ -24,21 +24,61 @@ export default function AdminGallery() {
   const handleEdit = (item: GalleryItem) => { setEditing({ ...item }); setShowForm(true); };
   const handleNew = () => { setEditing(emptyItem()); setShowForm(true); };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!editing) return;
-    const updated = gallery.find((g) => g.id === editing.id)
-      ? gallery.map((g) => (g.id === editing.id ? editing : g))
-      : [editing, ...gallery];
-    setGallery(updated);
+    try {
+      let res;
+      if (gallery.find((g) => String(g.id) === String(editing.id))) {
+        const serverId = Number(editing.id) || null;
+        if (serverId) {
+          res = await mysqlService.updateGalleryItem(serverId.toString(), editing);
+        }
+      } else {
+        res = await mysqlService.createGalleryItem(editing);
+        if (res && res.ok && res.data && res.data.id) {
+          editing.id = res.data.id.toString();
+        }
+      }
+      if (!res || !res.ok) {
+        throw new Error(res?.error || 'Failed to save gallery item');
+      }
+      const refreshed = await mysqlService.getGallery();
+      if (refreshed.ok && Array.isArray(refreshed.data) && refreshed.data.length > 0) {
+        setGallery(refreshed.data as any);
+      } else {
+        const nextGallery = gallery.some((g) => String(g.id) === String(editing.id))
+          ? gallery.map((g) => String(g.id) === String(editing.id) ? { ...g, ...editing } : g)
+          : [{ ...editing }, ...gallery];
+        setGallery(nextGallery);
+      }
+    } catch (err) {
+      console.error('[AdminGallery] save failed', err);
+      alert('Failed to save gallery item to server. Please try again.');
+      return;
+    }
     setShowForm(false);
     setEditing(null);
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };
 
-  const handleDelete = (id: string) => {
-    setGallery(gallery.filter((g) => g.id !== id));
-    setDeleteConfirm(null);
+  const handleDelete = async (id: string) => {
+    if (!confirm('Delete this photo?')) return;
+    try {
+      const result = await mysqlService.deleteGalleryItem(id);
+      if (!result.ok) throw new Error(result.error || 'Delete failed');
+      const refreshed = await mysqlService.getGallery();
+      if (refreshed.ok && Array.isArray(refreshed.data)) {
+        setGallery(refreshed.data as any);
+      } else {
+        setGallery(gallery.filter((g) => g.id !== id));
+      }
+    } catch (err) {
+      console.error('[AdminGallery] delete failed', err);
+      alert('Failed to delete gallery item on server.');
+    } finally {
+      setDeleteConfirm(null);
+    }
   };
 
   const processFiles = useCallback(async (files: FileList | null) => {
