@@ -188,7 +188,7 @@ export default function ServicesPage() {
             <div key={service.id} className="bg-white rounded-xl overflow-hidden border border-gray-100 hover:border-orange-200 transition-all group">
               <div className="h-56 overflow-hidden relative bg-gray-100 flex items-center justify-center">
                 <img
-                  src={service.image}
+                  src={service.image || service.imageUrl || ''}
                   alt={service.title}
                   className="max-h-full max-w-full object-contain transition-transform duration-500 group-hover:scale-105"
                 />

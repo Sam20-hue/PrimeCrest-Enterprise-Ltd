@@ -17,6 +17,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 require_once __DIR__ . '/db.php';
 ensureSchema($conn);
 
+// Simple logging utility for server-side diagnostics
+function log_error(string $msg): void {
+    $logDir = __DIR__ . '/logs';
+    if (!is_dir($logDir)) mkdir($logDir, 0755, true);
+    $line = '[' . date('Y-m-d H:i:s') . '] ' . $msg . PHP_EOL;
+    @file_put_contents($logDir . '/api.log', $line, FILE_APPEND | LOCK_EX);
+}
+
+set_exception_handler(function($e) {
+    log_error("Uncaught exception: " . $e->getMessage() . " in " . $e->getFile() . ":" . $e->getLine());
+    http_response_code(500);
+    echo json_encode(['error' => 'Internal server error.']);
+    exit;
+});
+
+set_error_handler(function($severity, $message, $file, $line) {
+    log_error("PHP error [$severity]: $message in $file:$line");
+    // Let PHP handle the error as well
+    return false;
+});
+
+register_shutdown_function(function() {
+    $err = error_get_last();
+    if ($err) {
+        log_error('Shutdown error: ' . json_encode($err));
+        // If a fatal error occurred, ensure JSON response for the client with diagnostics (for debugging).
+        if (!headers_sent()) {
+            http_response_code(500);
+            header('Content-Type: application/json');
+            echo json_encode(['error' => 'Fatal PHP error', 'details' => $err]);
+        }
+    }
+});
+
 function getExistingColumns(mysqli $conn, string $table): array {
     $stmt = $conn->prepare('SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?');
     if (!$stmt) {
@@ -94,6 +128,12 @@ if ($id === null && preg_match('/\/(\d+)\/?$/', $path, $matches)) {
 
 $input = json_decode(file_get_contents('php://input'), true) ?? [];
 
+// Dedicated contact submission handler for both DB and file-fallback modes.
+if ($resource === 'contact' || $endpoint === 'contact') {
+    require_once __DIR__ . '/contact.php';
+    exit;
+}
+
 // FILE-FALLBACK ROUTER: if DB connection is unavailable, use JSON files in ./data/
 if (!isset($conn) || $conn === null) {
     $dataDir = __DIR__ . '/data';
@@ -111,32 +151,10 @@ if (!isset($conn) || $conn === null) {
         file_put_contents($file, json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
     };
 
-    // Contact submission
-    if ($resource === 'contact' || $resource === 'contacts' || $endpoint === 'contact') {
-        if ($method === 'POST') {
-            $contacts = $readJson('contacts') ?? [];
-            $record = [
-                'id' => (count($contacts) ? (max(array_column($contacts, 'id')) + 1) : 1),
-                'name' => $input['name'] ?? '',
-                'email' => $input['email'] ?? '',
-                'phone' => $input['phone'] ?? '',
-                'service' => $input['service'] ?? '',
-                'message' => $input['message'] ?? '',
-                'created_at' => date('Y-m-d H:i:s')
-            ];
-            $contacts[] = $record;
-            $writeJson('contacts', $contacts);
-            // attempt to send email using PHP mail
-            $to = ($input['email'] ?? '');
-            // respond success
-            echo json_encode(['id' => $record['id'], 'success' => true]);
-            exit;
-        }
-        if ($method === 'GET') {
-            $contacts = $readJson('contacts') ?? [];
-            echo json_encode($contacts);
-            exit;
-        }
+    // Contact submissions: delegate only /api/contact to contact.php.
+    if ($resource === 'contact' || $endpoint === 'contact') {
+        require_once __DIR__ . '/contact.php';
+        exit;
     }
 
     // Settings
@@ -216,7 +234,11 @@ try {
     if ($resource === 'settings' || $endpoint === 'settings') {
         if ($method === 'GET') {
             $row = fetch_one($conn, 'SELECT * FROM settings LIMIT 1');
-            echo json_encode($row ?: []);
+            $dataDir = __DIR__ . '/data';
+            $file = $dataDir . '/settings.json';
+            $staticSettings = is_file($file) ? (json_decode(file_get_contents($file), true) ?: []) : [];
+            $merged = array_merge($row ?: [], $staticSettings);
+            echo json_encode($merged);
         } elseif ($method === 'PUT') {
             // Persist textual settings to a static JSON file so wording remains static.
             $dataDir = __DIR__ . '/data';
@@ -266,18 +288,58 @@ try {
             $rows = fetch_all_assoc($conn, 'SELECT * FROM services ORDER BY id');
             echo json_encode($rows);
         } elseif ($method === 'POST') {
-            $stmt = $conn->prepare('INSERT INTO services (title, subtitle, icon, description, imageUrl, images, imagesCaptions) VALUES (?, ?, ?, ?, ?, ?, ?)');
             $images = is_array($input['images'] ?? null) ? json_encode($input['images'], JSON_UNESCAPED_UNICODE) : ($input['images'] ?? null);
             $captions = is_array($input['imagesCaptions'] ?? null) ? json_encode($input['imagesCaptions'], JSON_UNESCAPED_UNICODE) : ($input['imagesCaptions'] ?? null);
-            $stmt->bind_param('sssssss', $input['title'], $input['subtitle'], $input['icon'], $input['description'], $input['imageUrl'], $images, $captions);
-            $stmt->execute();
+            $title = $input['title'] ?? null;
+            $subtitle = $input['subtitle'] ?? null;
+            $icon = $input['icon'] ?? null;
+            $description = $input['description'] ?? null;
+            $imageUrl = $input['imageUrl'] ?? null;
+
+            $stmt = $conn->prepare('INSERT INTO services (title, subtitle, icon, description, imageUrl, images, imagesCaptions) VALUES (?, ?, ?, ?, ?, ?, ?)');
+            if ($stmt === false) {
+                http_response_code(500);
+                echo json_encode(['error' => 'Database prepare failed: ' . ($conn->error ?? 'unknown')]);
+                exit;
+            }
+            $ok = $stmt->bind_param('sssssss', $title, $subtitle, $icon, $description, $imageUrl, $images, $captions);
+            if ($ok === false) {
+                http_response_code(500);
+                echo json_encode(['error' => 'bind_param failed']);
+                exit;
+            }
+            if (!$stmt->execute()) {
+                http_response_code(500);
+                echo json_encode(['error' => 'Execute failed: ' . $stmt->error]);
+                exit;
+            }
             echo json_encode(['id' => $conn->insert_id, 'success' => true]);
         } elseif ($method === 'PUT' && $id) {
-            $stmt = $conn->prepare('UPDATE services SET title = ?, subtitle = ?, icon = ?, description = ?, imageUrl = ?, images = ?, imagesCaptions = ? WHERE id = ?');
             $images = is_array($input['images'] ?? null) ? json_encode($input['images'], JSON_UNESCAPED_UNICODE) : ($input['images'] ?? null);
             $captions = is_array($input['imagesCaptions'] ?? null) ? json_encode($input['imagesCaptions'], JSON_UNESCAPED_UNICODE) : ($input['imagesCaptions'] ?? null);
-            $stmt->bind_param('sssssssi', $input['title'], $input['subtitle'], $input['icon'], $input['description'], $input['imageUrl'], $images, $captions, $id);
-            $stmt->execute();
+            $title = $input['title'] ?? null;
+            $subtitle = $input['subtitle'] ?? null;
+            $icon = $input['icon'] ?? null;
+            $description = $input['description'] ?? null;
+            $imageUrl = $input['imageUrl'] ?? null;
+
+            $stmt = $conn->prepare('UPDATE services SET title = ?, subtitle = ?, icon = ?, description = ?, imageUrl = ?, images = ?, imagesCaptions = ? WHERE id = ?');
+            if ($stmt === false) {
+                http_response_code(500);
+                echo json_encode(['error' => 'Database prepare failed: ' . ($conn->error ?? 'unknown')]);
+                exit;
+            }
+            $ok = $stmt->bind_param('sssssssi', $title, $subtitle, $icon, $description, $imageUrl, $images, $captions, $id);
+            if ($ok === false) {
+                http_response_code(500);
+                echo json_encode(['error' => 'bind_param failed']);
+                exit;
+            }
+            if (!$stmt->execute()) {
+                http_response_code(500);
+                echo json_encode(['error' => 'Execute failed: ' . $stmt->error]);
+                exit;
+            }
             echo json_encode(['success' => true]);
         } elseif ($method === 'DELETE' && $id) {
             $stmt = $conn->prepare('DELETE FROM services WHERE id = ?');
@@ -295,16 +357,30 @@ try {
         } elseif ($method === 'POST') {
             $images = is_array($input['images'] ?? null) ? json_encode($input['images'], JSON_UNESCAPED_UNICODE) : ($input['images'] ?? null);
             $captions = is_array($input['imagesCaptions'] ?? null) ? json_encode($input['imagesCaptions'], JSON_UNESCAPED_UNICODE) : ($input['imagesCaptions'] ?? null);
+            $title = $input['title'] ?? null;
+            $category = $input['category'] ?? null;
+            $imageUrl = $input['imageUrl'] ?? null;
+            $description = $input['description'] ?? null;
+
             $stmt = $conn->prepare('INSERT INTO gallery (title, category, imageUrl, images, imagesCaptions, description) VALUES (?, ?, ?, ?, ?, ?)');
-            $stmt->bind_param('ssssss', $input['title'], $input['category'], $input['imageUrl'], $images, $captions, $input['description']);
-            $stmt->execute();
+            if ($stmt === false) { http_response_code(500); echo json_encode(['error' => 'Database prepare failed: ' . ($conn->error ?? 'unknown')]); exit; }
+            $ok = $stmt->bind_param('ssssss', $title, $category, $imageUrl, $images, $captions, $description);
+            if ($ok === false) { http_response_code(500); echo json_encode(['error' => 'bind_param failed']); exit; }
+            if (!$stmt->execute()) { http_response_code(500); echo json_encode(['error' => 'Execute failed: ' . $stmt->error]); exit; }
             echo json_encode(['id' => $conn->insert_id, 'success' => true]);
         } elseif ($method === 'PUT' && $id) {
             $images = is_array($input['images'] ?? null) ? json_encode($input['images'], JSON_UNESCAPED_UNICODE) : ($input['images'] ?? null);
             $captions = is_array($input['imagesCaptions'] ?? null) ? json_encode($input['imagesCaptions'], JSON_UNESCAPED_UNICODE) : ($input['imagesCaptions'] ?? null);
+            $title = $input['title'] ?? null;
+            $category = $input['category'] ?? null;
+            $imageUrl = $input['imageUrl'] ?? null;
+            $description = $input['description'] ?? null;
+
             $stmt = $conn->prepare('UPDATE gallery SET title = ?, category = ?, imageUrl = ?, images = ?, imagesCaptions = ?, description = ? WHERE id = ?');
-            $stmt->bind_param('ssssssi', $input['title'], $input['category'], $input['imageUrl'], $images, $captions, $input['description'], $id);
-            $stmt->execute();
+            if ($stmt === false) { http_response_code(500); echo json_encode(['error' => 'Database prepare failed: ' . ($conn->error ?? 'unknown')]); exit; }
+            $ok = $stmt->bind_param('ssssssi', $title, $category, $imageUrl, $images, $captions, $description, $id);
+            if ($ok === false) { http_response_code(500); echo json_encode(['error' => 'bind_param failed']); exit; }
+            if (!$stmt->execute()) { http_response_code(500); echo json_encode(['error' => 'Execute failed: ' . $stmt->error]); exit; }
             echo json_encode(['success' => true]);
         } elseif ($method === 'DELETE' && $id) {
             $stmt = $conn->prepare('DELETE FROM gallery WHERE id = ?');
@@ -323,17 +399,43 @@ try {
             $images = is_array($input['images'] ?? null) ? json_encode($input['images'], JSON_UNESCAPED_UNICODE) : ($input['images'] ?? null);
             $captions = is_array($input['imagesCaptions'] ?? null) ? json_encode($input['imagesCaptions'], JSON_UNESCAPED_UNICODE) : ($input['imagesCaptions'] ?? null);
             $published = !empty($input['published']) ? 1 : 0;
+            $title = $input['title'] ?? null;
+            $excerpt = $input['excerpt'] ?? null;
+            $content = $input['content'] ?? null;
+            $category = $input['category'] ?? null;
+            $imageUrl = $input['imageUrl'] ?? null;
+            $author = $input['author'] ?? null;
+            $authorId = $input['authorId'] ?? null;
+            $date = $input['date'] ?? null;
+            $published_at = $input['published_at'] ?? $date;
+            $newsletterSent = !empty($input['newsletterSent']) ? 1 : 0;
+
             $stmt = $conn->prepare('INSERT INTO blog (title, excerpt, content, category, imageUrl, images, imagesCaptions, author, authorId, published, date, published_at, newsletterSent) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
-            $stmt->bind_param('ssssssssisssi', $input['title'], $input['excerpt'], $input['content'], $input['category'], $input['imageUrl'], $images, $captions, $input['author'], $input['authorId'], $published, $input['date'], $input['published_at'] ?? $input['date'], !empty($input['newsletterSent']) ? 1 : 0);
-            $stmt->execute();
+            if ($stmt === false) { http_response_code(500); echo json_encode(['error' => 'Database prepare failed: ' . ($conn->error ?? 'unknown')]); exit; }
+            $ok = $stmt->bind_param('ssssssssisssi', $title, $excerpt, $content, $category, $imageUrl, $images, $captions, $author, $authorId, $published, $date, $published_at, $newsletterSent);
+            if ($ok === false) { http_response_code(500); echo json_encode(['error' => 'bind_param failed']); exit; }
+            if (!$stmt->execute()) { http_response_code(500); echo json_encode(['error' => 'Execute failed: ' . $stmt->error]); exit; }
             echo json_encode(['id' => $conn->insert_id, 'success' => true]);
         } elseif ($method === 'PUT' && $id) {
             $images = is_array($input['images'] ?? null) ? json_encode($input['images'], JSON_UNESCAPED_UNICODE) : ($input['images'] ?? null);
             $captions = is_array($input['imagesCaptions'] ?? null) ? json_encode($input['imagesCaptions'], JSON_UNESCAPED_UNICODE) : ($input['imagesCaptions'] ?? null);
             $published = !empty($input['published']) ? 1 : 0;
+            $title = $input['title'] ?? null;
+            $excerpt = $input['excerpt'] ?? null;
+            $content = $input['content'] ?? null;
+            $category = $input['category'] ?? null;
+            $imageUrl = $input['imageUrl'] ?? null;
+            $author = $input['author'] ?? null;
+            $authorId = $input['authorId'] ?? null;
+            $date = $input['date'] ?? null;
+            $published_at = $input['published_at'] ?? $date;
+            $newsletterSent = !empty($input['newsletterSent']) ? 1 : 0;
+
             $stmt = $conn->prepare('UPDATE blog SET title = ?, excerpt = ?, content = ?, category = ?, imageUrl = ?, images = ?, imagesCaptions = ?, author = ?, authorId = ?, published = ?, date = ?, published_at = ?, newsletterSent = ? WHERE id = ?');
-            $stmt->bind_param('ssssssssisssii', $input['title'], $input['excerpt'], $input['content'], $input['category'], $input['imageUrl'], $images, $captions, $input['author'], $input['authorId'], $published, $input['date'], $input['published_at'] ?? $input['date'], !empty($input['newsletterSent']) ? 1 : 0, $id);
-            $stmt->execute();
+            if ($stmt === false) { http_response_code(500); echo json_encode(['error' => 'Database prepare failed: ' . ($conn->error ?? 'unknown')]); exit; }
+            $ok = $stmt->bind_param('ssssssssisssii', $title, $excerpt, $content, $category, $imageUrl, $images, $captions, $author, $authorId, $published, $date, $published_at, $newsletterSent, $id);
+            if ($ok === false) { http_response_code(500); echo json_encode(['error' => 'bind_param failed']); exit; }
+            if (!$stmt->execute()) { http_response_code(500); echo json_encode(['error' => 'Execute failed: ' . $stmt->error]); exit; }
             echo json_encode(['success' => true]);
         } elseif ($method === 'DELETE' && $id) {
             $stmt = $conn->prepare('DELETE FROM blog WHERE id = ?');
@@ -349,14 +451,28 @@ try {
             $rows = fetch_all_assoc($conn, 'SELECT * FROM testimonials ORDER BY id');
             echo json_encode($rows);
         } elseif ($method === 'POST') {
+            $name = $input['name'] ?? null;
+            $role = $input['role'] ?? null;
+            $photo = $input['photo'] ?? null;
+            $quote = $input['quote'] ?? null;
+
             $stmt = $conn->prepare('INSERT INTO testimonials (name, role, photo, quote) VALUES (?, ?, ?, ?)');
-            $stmt->bind_param('ssss', $input['name'], $input['role'], $input['photo'], $input['quote']);
-            $stmt->execute();
+            if ($stmt === false) { http_response_code(500); echo json_encode(['error' => 'Database prepare failed: ' . ($conn->error ?? 'unknown')]); exit; }
+            $ok = $stmt->bind_param('ssss', $name, $role, $photo, $quote);
+            if ($ok === false) { http_response_code(500); echo json_encode(['error' => 'bind_param failed']); exit; }
+            if (!$stmt->execute()) { http_response_code(500); echo json_encode(['error' => 'Execute failed: ' . $stmt->error]); exit; }
             echo json_encode(['id' => $conn->insert_id, 'success' => true]);
         } elseif ($method === 'PUT' && $id) {
+            $name = $input['name'] ?? null;
+            $role = $input['role'] ?? null;
+            $photo = $input['photo'] ?? null;
+            $quote = $input['quote'] ?? null;
+
             $stmt = $conn->prepare('UPDATE testimonials SET name = ?, role = ?, photo = ?, quote = ? WHERE id = ?');
-            $stmt->bind_param('ssssi', $input['name'], $input['role'], $input['photo'], $input['quote'], $id);
-            $stmt->execute();
+            if ($stmt === false) { http_response_code(500); echo json_encode(['error' => 'Database prepare failed: ' . ($conn->error ?? 'unknown')]); exit; }
+            $ok = $stmt->bind_param('ssssi', $name, $role, $photo, $quote, $id);
+            if ($ok === false) { http_response_code(500); echo json_encode(['error' => 'bind_param failed']); exit; }
+            if (!$stmt->execute()) { http_response_code(500); echo json_encode(['error' => 'Execute failed: ' . $stmt->error]); exit; }
             echo json_encode(['success' => true]);
         } elseif ($method === 'DELETE' && $id) {
             $stmt = $conn->prepare('DELETE FROM testimonials WHERE id = ?');
@@ -372,14 +488,26 @@ try {
             $rows = fetch_all_assoc($conn, 'SELECT * FROM team ORDER BY id');
             echo json_encode($rows);
         } elseif ($method === 'POST') {
+            $name = $input['name'] ?? null;
+            $role = $input['role'] ?? null;
+            $imageUrl = $input['imageUrl'] ?? null;
+
             $stmt = $conn->prepare('INSERT INTO team (name, role, imageUrl) VALUES (?, ?, ?)');
-            $stmt->bind_param('sss', $input['name'], $input['role'], $input['imageUrl']);
-            $stmt->execute();
+            if ($stmt === false) { http_response_code(500); echo json_encode(['error' => 'Database prepare failed: ' . ($conn->error ?? 'unknown')]); exit; }
+            $ok = $stmt->bind_param('sss', $name, $role, $imageUrl);
+            if ($ok === false) { http_response_code(500); echo json_encode(['error' => 'bind_param failed']); exit; }
+            if (!$stmt->execute()) { http_response_code(500); echo json_encode(['error' => 'Execute failed: ' . $stmt->error]); exit; }
             echo json_encode(['id' => $conn->insert_id, 'success' => true]);
         } elseif ($method === 'PUT' && $id) {
+            $name = $input['name'] ?? null;
+            $role = $input['role'] ?? null;
+            $imageUrl = $input['imageUrl'] ?? null;
+
             $stmt = $conn->prepare('UPDATE team SET name = ?, role = ?, imageUrl = ? WHERE id = ?');
-            $stmt->bind_param('sssi', $input['name'], $input['role'], $input['imageUrl'], $id);
-            $stmt->execute();
+            if ($stmt === false) { http_response_code(500); echo json_encode(['error' => 'Database prepare failed: ' . ($conn->error ?? 'unknown')]); exit; }
+            $ok = $stmt->bind_param('sssi', $name, $role, $imageUrl, $id);
+            if ($ok === false) { http_response_code(500); echo json_encode(['error' => 'bind_param failed']); exit; }
+            if (!$stmt->execute()) { http_response_code(500); echo json_encode(['error' => 'Execute failed: ' . $stmt->error]); exit; }
             echo json_encode(['success' => true]);
         } elseif ($method === 'DELETE' && $id) {
             $stmt = $conn->prepare('DELETE FROM team WHERE id = ?');
@@ -390,14 +518,22 @@ try {
     }
     
     // ==================== CONTACTS ====================
-    else if ($resource === 'contacts' || $endpoint === 'contact') {
+    else if ($resource === 'contacts') {
         if ($method === 'GET') {
             $rows = fetch_all_assoc($conn, 'SELECT * FROM contacts ORDER BY created_at DESC');
             echo json_encode($rows);
         } elseif ($method === 'POST') {
+            $name = $input['name'] ?? null;
+            $email = $input['email'] ?? null;
+            $phone = $input['phone'] ?? null;
+            $service = $input['service'] ?? null;
+            $message = $input['message'] ?? null;
+
             $stmt = $conn->prepare('INSERT INTO contacts (name, email, phone, service, message) VALUES (?, ?, ?, ?, ?)');
-            $stmt->bind_param('sssss', $input['name'], $input['email'], $input['phone'], $input['service'], $input['message']);
-            $stmt->execute();
+            if ($stmt === false) { http_response_code(500); echo json_encode(['error' => 'Database prepare failed: ' . ($conn->error ?? 'unknown')]); exit; }
+            $ok = $stmt->bind_param('sssss', $name, $email, $phone, $service, $message);
+            if ($ok === false) { http_response_code(500); echo json_encode(['error' => 'bind_param failed']); exit; }
+            if (!$stmt->execute()) { http_response_code(500); echo json_encode(['error' => 'Execute failed: ' . $stmt->error]); exit; }
             echo json_encode(['id' => $conn->insert_id, 'success' => true]);
         } elseif ($method === 'DELETE' && $id) {
             $stmt = $conn->prepare('DELETE FROM contacts WHERE id = ?');

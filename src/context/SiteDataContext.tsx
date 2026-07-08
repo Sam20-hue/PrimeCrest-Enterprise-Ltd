@@ -47,9 +47,11 @@ export interface Service {
   id: string;
   title: string;
   description: string;
+  subtitle?: string;
   details?: string;
   icon: string;
   image: string;
+  imageUrl?: string;
   images?: string[];
   imagesCaptions?: string[];
   features: string[];
@@ -220,13 +222,17 @@ function normalizeSocialMedia(value: unknown): SocialMedia {
 
 function normalizeService(value: unknown): Service {
   const stored = typeof value === 'object' && value !== null ? (value as Partial<Service>) : {};
+  const imageUrl = safeString(stored.imageUrl ?? stored.image, '');
+  const image = safeString(stored.image ?? stored.imageUrl, '');
   return {
     id: safeString(stored.id, `${Date.now()}`),
     title: safeString(stored.title, ''),
     description: safeString(stored.description, ''),
+    subtitle: safeString(stored.subtitle, ''),
     details: safeString(stored.details, ''),
     icon: safeString(stored.icon, 'ri-tools-line'),
-    image: safeString(stored.image ?? stored.imageUrl, ''),
+    image,
+    imageUrl,
     images: parseJsonArray<string>(stored.images).filter((item): item is string => typeof item === 'string'),
     imagesCaptions: parseJsonArray<string>(stored.imagesCaptions).filter((item): item is string => typeof item === 'string'),
     features: Array.isArray(stored.features) ? stored.features.filter((item): item is string => typeof item === 'string') : [],

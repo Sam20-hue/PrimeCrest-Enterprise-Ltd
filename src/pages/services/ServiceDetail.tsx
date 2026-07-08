@@ -78,7 +78,7 @@ export default function ServiceDetailPage() {
     );
   }
 
-  const galleryImages = Array.isArray(service.images) && service.images.length > 0 ? service.images : [service.image].filter(Boolean);
+  const galleryImages = Array.isArray(service.images) && service.images.length > 0 ? service.images : [(service.image || service.imageUrl)].filter(Boolean);
   const features = Array.isArray(service.features) ? service.features : [];
 
   return (
@@ -93,7 +93,7 @@ export default function ServiceDetailPage() {
       <section className="relative w-full">
         <div className="w-full h-[60vh] sm:h-[50vh] relative overflow-hidden bg-white">
           <img
-            src={service.image}
+            src={service.image || service.imageUrl || ''}
             alt={service.title}
             className="absolute inset-0 h-full w-full object-cover opacity-100"
           />

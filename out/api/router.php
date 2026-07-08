@@ -20,6 +20,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 }
 
 require_once __DIR__ . '/db.php';
+
+if (!function_exists('ensureSchema')) {
+    function ensureSchema(?mysqli $conn): void {
+        // Fallback stub for static analysis; actual implementation is loaded from db.php.
+    }
+}
+
+if (!function_exists('fetch_one')) {
+    function fetch_one(?mysqli $conn, string $query, array $params = [], string $types = ''): ?array {
+        return null;
+    }
+}
+
+if (!function_exists('fetch_all_assoc')) {
+    function fetch_all_assoc(?mysqli $conn, string $query, array $params = [], string $types = ''): array {
+        return [];
+    }
+}
+
+if (!function_exists('safeQuery')) {
+    function safeQuery(?mysqli $conn, string $query, array $params = [], string $types = '') {
+        return false;
+    }
+}
+
+if (!function_exists('query_json')) {
+    function query_json(?mysqli $conn, string $query, array $params = [], string $types = ''): bool {
+        return false;
+    }
+}
+
 ensureSchema($conn);
 
 /**
@@ -27,6 +58,8 @@ ensureSchema($conn);
  * @param mixed $payload
  */
 function respond(int $code, mixed $payload): void {
+    global $__api_debug_log;
+
     // Ensure any accidental buffered output is removed so client receives pure JSON.
     if (ob_get_length() !== false) {
         ob_clean();

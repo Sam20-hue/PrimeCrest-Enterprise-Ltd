@@ -8,9 +8,11 @@ const emptyService = (): Service => ({
   id: Date.now().toString(),
   title: '',
   description: '',
+  subtitle: '',
   details: '',
   icon: 'ri-tools-line',
   image: '',
+  imageUrl: '',
   images: [],
   imagesCaptions: [],
   features: ['', '', ''],
@@ -91,6 +93,7 @@ export default function AdminServices() {
       if (refreshed.ok && Array.isArray(refreshed.data)) {
         const normalizedServices = refreshed.data.map((svc: any) => ({
           ...svc,
+          imageUrl: svc.imageUrl || svc.image || '',
           image: svc.imageUrl || svc.image || '', // Ensure 'image' field is populated from imageUrl
         }));
         setServices(normalizedServices as any);
@@ -115,6 +118,7 @@ export default function AdminServices() {
       if (refreshed.ok && Array.isArray(refreshed.data)) {
         const normalizedServices = refreshed.data.map((svc: any) => ({
           ...svc,
+          imageUrl: svc.imageUrl || svc.image || '',
           image: svc.imageUrl || svc.image || '', // Ensure 'image' field is populated from imageUrl
         }));
         setServices(normalizedServices as any);

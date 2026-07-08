@@ -85,7 +85,7 @@ export default function AdminContacts() {
                 </div>
                 <div className="flex items-center gap-3">
                   <p className="text-xs text-gray-400">
-                    {new Date(contact.created_at).toLocaleString()}
+                    {contact.created_at ? new Date(contact.created_at.replace(' ', 'T')).toLocaleString() : 'Unknown date'}
                   </p>
                   <button
                     onClick={() => handleDelete(contact.id)}

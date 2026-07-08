@@ -122,7 +122,7 @@ function safeQuery(?mysqli $conn, string $query, array $params = [], string $typ
                 if (!empty($params)) {
                     // Attempt to guess columns from query
                     if (preg_match('/\(([^)]+)\)\s*VALUES/i', $query, $colsMatch)) {
-                        $cols = array_map(fn($c) => trim(trim($c), '`"\' ), explode(',', $colsMatch[1]));
+                        $cols = array_map(fn($c) => trim(trim($c), '`"\' '), explode(',', $colsMatch[1]));
                         foreach ($cols as $i => $col) {
                             $record[$col] = $params[$i] ?? null;
                         }
@@ -186,8 +186,13 @@ function safeQuery(?mysqli $conn, string $query, array $params = [], string $typ
     }
 }
 
+/**
+ * Execute an UPDATE/DELETE/other prepared statement returning boolean.
+ * For file-fallback mode, provide a best-effort write behavior for `settings`.
+ */
 function query_json(?mysqli $conn, string $query, array $params = [], string $types = ''): bool {
     if ($conn === null) {
+        // Handle UPDATE settings -> write to data/settings.json
         if (preg_match('/UPDATE\s+settings/i', $query)) {
             $dataDir = __DIR__ . '/data';
             if (!is_dir($dataDir)) mkdir($dataDir, 0755, true);
@@ -204,6 +209,7 @@ function query_json(?mysqli $conn, string $query, array $params = [], string $ty
                 file_put_contents($file, json_encode($current, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
                 return true;
             }
+            // Fallback: write provided associative array if params contains one
             if (isset($params[0]) && is_array($params[0])) {
                 $merged = array_merge($current, $params[0]);
                 file_put_contents($file, json_encode($merged, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
@@ -370,7 +376,7 @@ function ensureSchema(?mysqli $conn): void {
         heroTitle VARCHAR(255) DEFAULT NULL,
         heroSubtitle VARCHAR(255) DEFAULT NULL,
         heroImage VARCHAR(500) DEFAULT NULL,
-        footerText VARCHAR(255) DEFAULT NULL,
+        footerText TEXT DEFAULT NULL,
         mysqlApiUrl VARCHAR(500) DEFAULT NULL,
         admin2faSecret VARCHAR(255) DEFAULT NULL,
         admin2faEnabled TINYINT(1) DEFAULT 0,

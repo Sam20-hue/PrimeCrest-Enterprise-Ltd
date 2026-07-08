@@ -25,7 +25,7 @@ export default function ServicesPreview() {
             >
               <div className="h-44 overflow-hidden bg-gray-100 flex items-center justify-center">
                 <img
-                  src={service.image}
+                  src={service.image || service.imageUrl || ''}
                   alt={service.title}
                   className="max-h-full max-w-full object-contain transition-transform duration-500 group-hover:scale-105"
                 />

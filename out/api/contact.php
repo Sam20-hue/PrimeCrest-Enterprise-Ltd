@@ -14,7 +14,7 @@ require_once __DIR__ . '/db.php';
 const SMTP_HOST = 'mail.primecrestenterprise.com';
 const SMTP_PORT = 587;
 const SMTP_USER = 'info@primecrestenterprise.com';
-const SMTP_PASS = 'Primecrest321!';
+const SMTP_PASS = 'Samson20???';
 const SENDER_EMAIL = 'info@primecrestenterprise.com';
 const CONTACT_RECIPIENT = 'info@primecrestenterprise.com';
 
@@ -22,6 +22,13 @@ function respond($code, $payload) {
     http_response_code($code);
     echo json_encode($payload);
     exit;
+}
+
+function contact_log(string $msg): void {
+    $logDir = __DIR__ . '/logs';
+    if (!is_dir($logDir)) mkdir($logDir, 0755, true);
+    $line = '[' . date('Y-m-d H:i:s') . '] ' . $msg . PHP_EOL;
+    @file_put_contents($logDir . '/contact.log', $line, FILE_APPEND | LOCK_EX);
 }
 
 function smtpRecv($fp) {
@@ -164,6 +171,7 @@ try {
         $contactId = null;
     }
 } catch (Exception $e) {
+    contact_log('DB insert failed: ' . $e->getMessage());
     respond(500, ['error' => 'Unable to save contact message to database.', 'details' => $e->getMessage()]);
 }
 
@@ -191,7 +199,7 @@ $htmlMessage = '<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="vie
     ($service !== '' ? '<div class="card"><strong>Service</strong><span>' . htmlspecialchars($service, ENT_QUOTES, 'UTF-8') . '</span></div>' : '') .
     '</div>' .
     '<div class="section"><span class="section-title">Message</span><div class="message-box">' . nl2br(htmlspecialchars($message, ENT_QUOTES, 'UTF-8')) . '</div></div>' .
-    '<div class="section"><span class="section-title">Summary</span><div class="card"><strong>Received</strong><span>' . date('F j, Y \\a\\t g:i A') . '</span></div></div>' .
+    '<div class="section"><span class="section-title">Summary</span><div class="card"><strong>Received</strong><span>' . date('F j, Y \a\t g:i A') . '</span></div></div>' .
     '</div><div class="footer">' .
     '<p>This message was generated automatically by the Primecrest Enterprise contact form.</p>' .
     '<p><a href="mailto:' . htmlspecialchars($email, ENT_QUOTES, 'UTF-8') . '">Reply to ' . htmlspecialchars($email, ENT_QUOTES, 'UTF-8') . '</a></p>' .
@@ -207,6 +215,7 @@ $adminSent = sendSmtpMail(CONTACT_RECIPIENT, $subject, $htmlMessage, $sender, $r
 if ($adminSent) {
     $emailSent = true;
 } else {
+    contact_log('SMTP send failed: ' . ($error ?: 'unknown'));
     // Fallback to PHP mail() function
     $headers = [];
     $headers[] = 'From: ' . $sender;
@@ -216,11 +225,13 @@ if ($adminSent) {
     $adminSent = @mail(CONTACT_RECIPIENT, $subject, $htmlMessage, implode("\r\n", $headers));
     if ($adminSent) {
         $emailSent = true;
+        contact_log('PHP mail() fallback succeeded');
     }
 }
 
 // Always return success if contact was saved to database
 // Email delivery is secondary (it may fail due to server configuration)
+contact_log('Contact saved id=' . ($contactId ?? 'null') . ' emailSent=' . ($emailSent ? '1' : '0'));
 respond(201, [
     'success' => true,
     'id' => $contactId,
